@@ -31,27 +31,27 @@ export class MenuScene extends Phaser.Scene {
     });
 
     // Tito saludando
-    const tito = this.add.sprite(width / 2 - 250, height - 120, 'tito').setScale(2.5).setOrigin(0.5, 1);
+    const tito = this.add.sprite(width / 2 - 250, height - 130, 'tito').setScale(2.5).setOrigin(0.5, 1);
     tito.play('tito-idle');
 
     const continues = save.progress.unlocked.length > 1 || save.progress.totalScore > 0;
 
-    createButton(this, width / 2, 260, continues ? 'CONTINUAR' : 'JUGAR', () => {
+    createButton(this, width / 2, 250, continues ? 'CONTINUAR' : 'JUGAR', () => {
       this.scene.start('WorldMap');
     });
 
-    createButton(this, width / 2, 325, 'MAPA DE MUNDOS', () => {
+    createButton(this, width / 2, 310, 'MAPA DE MUNDOS', () => {
       this.scene.start('WorldMap');
     });
 
-    createButton(this, width / 2, 390, 'TABLA DE POSICIONES', () => {
+    createButton(this, width / 2, 370, 'TABLA DE POSICIONES', () => {
       this.scene.start('Leaderboard');
     });
 
     createButton(
       this,
       width / 2,
-      455,
+      430,
       api.isAuthenticated ? 'CERRAR SESION' : 'INICIAR SESION',
       () => {
         if (api.isAuthenticated) {
@@ -70,15 +70,15 @@ export class MenuScene extends Phaser.Scene {
         : 'Servidor listo - juega como invitado o inicia sesion'
       : 'Modo offline - tu progreso se guarda en este navegador';
     this.add
-      .text(width / 2, height - 34, status, { fontSize: '14px', color: '#8b949e' })
+      .text(width / 2, height - 58, status, { fontSize: '14px', color: '#8b949e' })
       .setOrigin(0.5);
 
     this.add
-      .text(16, height - 24, `Estrellas: ${save.stars}/${save.maxStars}   Puntaje: ${save.progress.totalScore}`, {
+      .text(width / 2, height - 30, `Estrellas ${save.stars}/${save.maxStars}   -   Puntaje ${save.progress.totalScore.toLocaleString('es-MX')}`, {
         fontSize: '14px',
         color: '#c9d1d9',
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0.5);
 
     this.add
       .text(width - 16, height - 24, `v${import.meta.env.VITE_GAME_VERSION ?? '0.1.0'}`, {

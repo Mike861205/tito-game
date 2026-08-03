@@ -12,10 +12,12 @@ game.events.once(Phaser.Core.Events.READY, () => {
   }
 });
 
-// Pausa el juego si la pestana pierde el foco.
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) game.loop.sleep();
-  else game.loop.wake();
-});
+// Phaser ya pausa el juego solo cuando la pestana pierde el foco
+// (Scale.pauseOnBlur), no hace falta manejarlo a mano.
+
+// Acceso para depurar desde la consola del navegador (solo en desarrollo).
+if (import.meta.env.DEV) {
+  (window as unknown as { __tito: Phaser.Game }).__tito = game;
+}
 
 export default game;

@@ -4,6 +4,29 @@ import type { InputState } from '../systems/InputController';
 
 export type DeathCause = 'enemigo' | 'caida' | 'pinchos' | 'lava' | 'tiempo' | 'desconocido';
 
+/** Registra las animaciones de Tito (se llama desde Preload y desde el constructor). */
+export function createTitoAnimations(scene: Phaser.Scene): void {
+  const anims = scene.anims;
+  if (anims.exists('tito-idle')) return;
+
+  anims.create({
+    key: 'tito-idle',
+    frames: anims.generateFrameNumbers('tito', { start: 0, end: 1 }),
+    frameRate: 3,
+    repeat: -1,
+  });
+  anims.create({
+    key: 'tito-run',
+    frames: anims.generateFrameNumbers('tito', { start: 2, end: 7 }),
+    frameRate: 14,
+    repeat: -1,
+  });
+  anims.create({ key: 'tito-jump', frames: [{ key: 'tito', frame: 8 }], frameRate: 1 });
+  anims.create({ key: 'tito-fall', frames: [{ key: 'tito', frame: 9 }], frameRate: 1 });
+  anims.create({ key: 'tito-hurt', frames: [{ key: 'tito', frame: 10 }], frameRate: 1 });
+  anims.create({ key: 'tito-crouch', frames: [{ key: 'tito', frame: 11 }], frameRate: 1 });
+}
+
 /**
  * TITO - el protagonista.
  * Controles pulidos estilo Mario: salto variable, coyote time,
@@ -45,25 +68,7 @@ export class Tito extends Phaser.Physics.Arcade.Sprite {
   }
 
   private createAnimations(): void {
-    const anims = this.scene.anims;
-    if (anims.exists('tito-idle')) return;
-
-    anims.create({
-      key: 'tito-idle',
-      frames: anims.generateFrameNumbers('tito', { start: 0, end: 1 }),
-      frameRate: 3,
-      repeat: -1,
-    });
-    anims.create({
-      key: 'tito-run',
-      frames: anims.generateFrameNumbers('tito', { start: 2, end: 7 }),
-      frameRate: 14,
-      repeat: -1,
-    });
-    anims.create({ key: 'tito-jump', frames: [{ key: 'tito', frame: 8 }], frameRate: 1 });
-    anims.create({ key: 'tito-fall', frames: [{ key: 'tito', frame: 9 }], frameRate: 1 });
-    anims.create({ key: 'tito-hurt', frames: [{ key: 'tito', frame: 10 }], frameRate: 1 });
-    anims.create({ key: 'tito-crouch', frames: [{ key: 'tito', frame: 11 }], frameRate: 1 });
+    createTitoAnimations(this.scene);
   }
 
   get isInvulnerable(): boolean {
