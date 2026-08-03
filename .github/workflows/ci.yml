@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generar cliente de Prisma
+        run: npm run db:generate
+
+      - name: Compilar todo
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/tito_game
+          DIRECT_URL: postgresql://user:pass@localhost:5432/tito_game
+          JWT_SECRET: ci-secret-para-compilar-solamente-1234567890
+
+      - name: Validar los 20 niveles
+        run: node scripts/check-levels.mjs

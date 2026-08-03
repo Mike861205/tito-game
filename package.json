@@ -1,0 +1,37 @@
+{
+  "name": "tito-game",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tito Game - plataformas 2D estilo Mario Bros con 5 mundos",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "npm run build:shared && concurrently -n api,game -c magenta,cyan \"npm:dev:api\" \"npm:dev:game\"",
+    "build:shared": "npm run build --workspace @tito/shared",
+    "dev:api": "npm run dev --workspace @tito/api",
+    "dev:game": "npm run dev --workspace @tito/game",
+    "build": "npm run build --workspace @tito/shared && npm run build --workspace @tito/api && npm run build --workspace @tito/game",
+    "start": "npm run start --workspace @tito/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "db:generate": "npm run db:generate --workspace @tito/api",
+    "db:push": "npm run db:push --workspace @tito/api",
+    "db:migrate": "npm run db:migrate --workspace @tito/api",
+    "db:studio": "npm run db:studio --workspace @tito/api",
+    "db:seed": "npm run db:seed --workspace @tito/api"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  }
+}

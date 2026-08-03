@@ -1,0 +1,10 @@
+Coloca aqui tu sprite sheet de Tito.
+
+Archivo requerido: tito.png
+Medidas: 12 frames de 48 x 48 px en una sola fila -> 576 x 48 px
+Formato: PNG con transparencia, pixel art sin antialias, mirando a la DERECHA.
+
+Orden de frames:
+0 idle | 1 idle2 | 2-7 correr | 8 salto | 9 caida | 10 dano | 11 agachado
+
+Ver ../README.md para el detalle completo.

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="description" content="Tito Game - Aventura de plataformas en 5 mundos" />
+    <link rel="icon" type="image/png" href="/assets/branding/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/assets/branding/icon-180.png" />
+    <title>Tito Game</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0d1117;
+        font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+        color: #fff;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #game-root {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      #boot-screen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: radial-gradient(circle at 50% 40%, #1b2a4a 0%, #0d1117 70%);
+        z-index: 10;
+        transition: opacity 0.4s ease;
+      }
+      #boot-screen.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot-logo {
+        width: 220px;
+        height: auto;
+        filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.6));
+      }
+      #boot-title {
+        font-size: 34px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        background: linear-gradient(180deg, #ffd54f, #ff8f00);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      #boot-sub {
+        font-size: 14px;
+        opacity: 0.7;
+      }
+      .spinner {
+        width: 34px;
+        height: 34px;
+        border: 4px solid rgba(255, 255, 255, 0.15);
+        border-top-color: #ffd54f;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-root"></div>
+    <div id="boot-screen">
+      <img id="boot-logo" src="/assets/branding/logo.png" alt="Tito Game" onerror="this.style.display='none'" />
+      <div id="boot-title">Tito Game</div>
+      <div class="spinner"></div>
+      <div id="boot-sub">Cargando aventura...</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

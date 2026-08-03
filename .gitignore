@@ -1,0 +1,36 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.tsbuildinfo
+
+# Env / secretos (NUNCA commitear)
+.env
+.env.*
+!.env.example
+!.env.development.example
+!.env.production.example
+
+# Prisma
+apps/api/prisma/*.db
+apps/api/prisma/migrations/dev.db*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+
+# Assets fuente pesados (opcional)
+assets-src/**/*.psd
+assets-src/**/*.aseprite.bak

@@ -1,0 +1,125 @@
+// ============================================================
+// TITO GAME - Esquema de base de datos (Neon Postgres)
+// ============================================================
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  role         Role     @default(PLAYER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  progress Progress?
+  scores   Score[]
+  runs     Run[]
+
+  @@index([createdAt])
+  @@map("users")
+}
+
+enum Role {
+  PLAYER
+  ADMIN
+}
+
+/// Progreso persistente de la partida (1 por usuario).
+model Progress {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  currentWorld Int      @default(1)
+  currentLevel Int      @default(1)
+  lives        Int      @default(3)
+  totalScore   Int      @default(0)
+  coins        Int      @default(0)
+  /// Ids de niveles desbloqueados: ["1-1","1-2",...]
+  unlocked     String[] @default(["1-1"])
+  /// Estadisticas por nivel: { "1-1": { bestScore, bestTimeMs, stars, completed } }
+  levelStats   Json     @default("{}")
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("progress")
+}
+
+/// Una partida iniciada. Sirve para validar los puntajes enviados.
+model Run {
+  id        String    @id @default(cuid())
+  userId    String
+  world     Int
+  level     Int
+  nonce     String
+  startedAt DateTime  @default(now())
+  closedAt  DateTime?
+  valid     Boolean   @default(true)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score  Score?
+
+  @@index([userId, startedAt])
+  @@map("runs")
+}
+
+model Score {
+  id              String   @id @default(cuid())
+  userId          String
+  runId           String?  @unique
+  world           Int
+  level           Int
+  score           Int
+  timeMs          Int
+  coins           Int      @default(0)
+  enemiesDefeated Int      @default(0)
+  deaths          Int      @default(0)
+  completed       Boolean  @default(false)
+  stars           Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  run  Run? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([world, level, score(sort: Desc)])
+  @@index([score(sort: Desc)])
+  @@index([createdAt])
+  @@map("scores")
+}
+
+/// Catalogo de niveles (para el mapa de mundos y balanceo desde servidor).
+model LevelCatalog {
+  id         String  @id
+  world      Int
+  level      Int
+  name       String
+  seed       Int
+  width      Int
+  difficulty Float
+  timeLimit  Int
+  boss       String?
+
+  @@unique([world, level])
+  @@map("level_catalog")
+}
+
+/// Cache de respuestas de OpenAI para no gastar tokens de mas.
+model AiTipCache {
+  id        String   @id @default(cuid())
+  cacheKey  String   @unique
+  tip       String
+  taunt     String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("ai_tip_cache")
+}

@@ -1,0 +1,11 @@
+Coloca aqui el logo de Tito Game.
+
+Archivos:
+  logo.png        1024 x 512  (obligatorio para el menu)
+  favicon-32.png  32 x 32
+  icon-180.png    180 x 180
+  icon-512.png    512 x 512
+  og-image.png    1200 x 630
+
+Formato: PNG-24 con transparencia. Debe leerse sobre fondo oscuro #0d1117.
+Ver ../README.md para el detalle completo.
