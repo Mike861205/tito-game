@@ -103,15 +103,6 @@ export async function buildApp(): Promise<FastifyInstance> {
     });
   });
 
-  app.setNotFoundHandler((req, reply) => {
-    if (req.url.startsWith('/api')) {
-      return reply
-        .code(404)
-        .send({ ok: false, error: { code: 'NOT_FOUND', message: 'Ruta no encontrada' } });
-    }
-    return reply.code(404).send({ ok: false, error: { code: 'NOT_FOUND', message: 'No encontrado' } });
-  });
-
   await app.register(healthRoutes);
   await app.register(authRoutes);
   await app.register(levelRoutes);
@@ -121,18 +112,21 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // En produccion la API tambien sirve el build del juego.
   const staticDir = resolve(__dirname, '..', env.STATIC_DIR);
-  if (isProd && existsSync(staticDir)) {
+  const servesGame = isProd && existsSync(staticDir);
+  if (servesGame) {
     await app.register(fastifyStatic, { root: staticDir, prefix: '/' });
-    app.setNotFoundHandler((req, reply) => {
-      if (req.url.startsWith('/api')) {
-        return reply
-          .code(404)
-          .send({ ok: false, error: { code: 'NOT_FOUND', message: 'Ruta no encontrada' } });
-      }
-      return reply.sendFile('index.html');
-    });
     app.log.info(`Sirviendo cliente estatico desde ${staticDir}`);
   }
+
+  app.setNotFoundHandler((req, reply) => {
+    if (req.url.startsWith('/api')) {
+      return reply
+        .code(404)
+        .send({ ok: false, error: { code: 'NOT_FOUND', message: 'Ruta no encontrada' } });
+    }
+    if (servesGame) return reply.sendFile('index.html');
+    return reply.code(404).send({ ok: false, error: { code: 'NOT_FOUND', message: 'No encontrado' } });
+  });
 
   return app;
 }
