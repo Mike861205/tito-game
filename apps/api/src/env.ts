@@ -5,6 +5,9 @@ import { z } from 'zod';
 // Carga .env de la raiz del monorepo y luego el local de la app.
 config({ path: resolve(process.cwd(), '../../.env') });
 config({ path: resolve(process.cwd(), '.env'), override: true });
+if (process.env.NODE_ENV !== 'production') {
+  config({ path: resolve(process.cwd(), '../../.env.superadmin'), override: true });
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -28,6 +31,14 @@ const envSchema = z.object({
 
   /** Carpeta con el build del cliente para servir en produccion. */
   STATIC_DIR: z.string().default('../game/dist'),
+
+  /** Panel de despliegue: solo se registra en desarrollo y acepta conexiones loopback. */
+  SUPERADMIN_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  SUPERADMIN_USER: z.string().optional(),
+  SUPERADMIN_PASSWORD: z.string().min(8).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

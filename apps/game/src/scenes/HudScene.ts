@@ -37,14 +37,18 @@ export class HudScene extends Phaser.Scene {
     this.powerText = this.add.text(670, 12, '', style(15, '#a5d6a7'));
     this.timeText = this.add.text(width - 16, 12, '', style(17, '#e6edf3')).setOrigin(1, 0);
 
-    this.add
-      .text(width - 16, this.scale.height - 20, 'SHIFT = impulso  |  ESPACIO = saltar / volar  |  ↓ = bajar  |  E / R = disparar  |  Q = lazo', {
-        fontSize: '12px',
-        color: '#ffffff',
-        backgroundColor: 'rgba(13,17,23,0.65)',
-        padding: { x: 8, y: 4 },
-      })
-      .setOrigin(1, 0.5);
+    const touchCapable =
+      this.sys.game.device.input.touch || navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches;
+    if (!touchCapable) {
+      this.add
+        .text(width - 16, this.scale.height - 20, 'SHIFT = impulso  |  ESPACIO = saltar / volar  |  ABAJO = bajar  |  E / R = disparar  |  Q = lazo', {
+          fontSize: '12px',
+          color: '#ffffff',
+          backgroundColor: 'rgba(13,17,23,0.65)',
+          padding: { x: 8, y: 4 },
+        })
+        .setOrigin(1, 0.5);
+    }
 
     const game = data.gameScene;
     createButton(this, 76, this.scale.height - 24, 'SALIR / PAUSA', () => game.events.emit('game:pause-request'), {

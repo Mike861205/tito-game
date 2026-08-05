@@ -40,7 +40,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   },
   input: {
     gamepad: true,
-    activePointers: 3,
+    activePointers: 8,
   },
   render: {
     powerPreference: 'high-performance',

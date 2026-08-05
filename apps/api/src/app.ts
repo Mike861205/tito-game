@@ -15,6 +15,7 @@ import { runRoutes } from './routes/scores.js';
 import { progressRoutes } from './routes/progress.js';
 import { levelRoutes } from './routes/levels.js';
 import { aiRoutes } from './routes/ai.js';
+import { superadminRoutes } from './routes/superadmin.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -109,6 +110,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(runRoutes);
   await app.register(progressRoutes);
   await app.register(aiRoutes);
+  await app.register(superadminRoutes);
 
   // En produccion la API tambien sirve el build del juego.
   const staticDir = resolve(__dirname, '..', env.STATIC_DIR);

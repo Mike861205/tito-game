@@ -20,18 +20,22 @@ export interface InputState {
 export class InputController {
   private scene: Phaser.Scene;
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
-  private touch: { left: boolean; right: boolean; jump: boolean; down: boolean } = {
+  private touch: Record<'left' | 'right' | 'jump' | 'down' | 'action' | 'rope' | 'rock', boolean> = {
     left: false,
     right: false,
     jump: false,
     down: false,
+    action: false,
+    rope: false,
+    rock: false,
   };
   private prevJump = false;
   private prevAction = false;
   private prevRope = false;
   private prevRock = false;
   private pauseCallbacks: Array<() => void> = [];
-  private touchContainer?: Phaser.GameObjects.Container;
+  private touchControls?: HTMLElement;
+  private domCleanup: Array<() => void> = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -41,37 +45,55 @@ export class InputController {
         'LEFT,RIGHT,UP,DOWN,A,D,W,S,SPACE,SHIFT,E,Q,R,ESC,P',
       ) as Record<string, Phaser.Input.Keyboard.Key>;
     }
-    if (scene.sys.game.device.input.touch) this.createTouchControls();
+    const touchCapable =
+      scene.sys.game.device.input.touch || navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches;
+    if (touchCapable) this.createTouchControls();
   }
 
   private createTouchControls(): void {
-    const { width, height } = this.scene.scale;
-    const mk = (
-      x: number,
-      y: number,
-      label: string,
-      onDown: () => void,
-      onUp: () => void,
-    ): Phaser.GameObjects.Container => {
-      const circle = this.scene.add.circle(0, 0, 40, 0xffffff, 0.18).setStrokeStyle(2, 0xffffff, 0.4);
-      const text = this.scene.add
-        .text(0, 0, label, { fontSize: '24px', color: '#ffffff' })
-        .setOrigin(0.5);
-      const c = this.scene.add.container(x, y, [circle, text]).setScrollFactor(0).setDepth(1000);
-      circle.setInteractive({ useHandCursor: true });
-      circle.on('pointerdown', onDown);
-      circle.on('pointerup', onUp);
-      circle.on('pointerout', onUp);
-      return c;
-    };
+    const controls = document.getElementById('mobile-controls');
+    if (!controls) return;
+    this.touchControls = controls;
+    controls.classList.add('active');
+    controls.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('gameplay-active');
 
-    this.touchContainer = this.scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
-    this.touchContainer.add([
-      mk(70, height - 70, '<', () => (this.touch.left = true), () => (this.touch.left = false)),
-      mk(170, height - 70, '>', () => (this.touch.right = true), () => (this.touch.right = false)),
-      mk(width - 80, height - 70, 'A', () => (this.touch.jump = true), () => (this.touch.jump = false)),
-      mk(width - 175, height - 60, 'v', () => (this.touch.down = true), () => (this.touch.down = false)),
-    ]);
+    controls.querySelectorAll<HTMLButtonElement>('[data-control]').forEach((button) => {
+      const key = button.dataset.control as keyof typeof this.touch;
+      const setPressed = (pressed: boolean): void => {
+        this.touch[key] = pressed;
+        button.classList.toggle('pressed', pressed);
+      };
+      const down = (event: PointerEvent): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        button.setPointerCapture?.(event.pointerId);
+        setPressed(true);
+      };
+      const up = (event: PointerEvent): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        setPressed(false);
+      };
+      button.addEventListener('pointerdown', down);
+      button.addEventListener('pointerup', up);
+      button.addEventListener('pointercancel', up);
+      button.addEventListener('lostpointercapture', up);
+      this.domCleanup.push(() => {
+        button.removeEventListener('pointerdown', down);
+        button.removeEventListener('pointerup', up);
+        button.removeEventListener('pointercancel', up);
+        button.removeEventListener('lostpointercapture', up);
+      });
+    });
+
+    const pause = document.getElementById('mobile-pause');
+    const pauseGame = (event: Event): void => {
+      event.preventDefault();
+      this.pauseCallbacks.forEach((callback) => callback());
+    };
+    pause?.addEventListener('click', pauseGame);
+    this.domCleanup.push(() => pause?.removeEventListener('click', pauseGame));
   }
 
   private pad(): Phaser.Input.Gamepad.Gamepad | undefined {
@@ -97,9 +119,9 @@ export class InputController {
     // En touch no hay una tecla SHIFT separada: mantener una direccion activa
     // la carrera para que tambien se pueda cargar la capa en celular/tablet.
     const sprint = Boolean(k.SHIFT?.isDown) || Boolean(pad?.X) || this.touch.left || this.touch.right;
-    const action = Boolean(k.E?.isDown) || Boolean(pad?.B);
-    const ropeDown = Boolean(k.Q?.isDown) || Boolean(pad?.Y);
-    const rockDown = Boolean(k.R?.isDown) || Boolean(pad?.buttons[5]?.pressed);
+    const action = Boolean(k.E?.isDown) || this.touch.action || Boolean(pad?.B);
+    const ropeDown = Boolean(k.Q?.isDown) || this.touch.rope || Boolean(pad?.Y);
+    const rockDown = Boolean(k.R?.isDown) || this.touch.rock || Boolean(pad?.buttons[5]?.pressed);
 
     const jumpJustPressed = jumpDown && !this.prevJump;
     const actionJustPressed = action && !this.prevAction;
@@ -137,6 +159,11 @@ export class InputController {
       this.scene.input.keyboard?.off('keydown-P', callback);
     }
     this.pauseCallbacks = [];
-    this.touchContainer?.destroy(true);
+    this.domCleanup.forEach((cleanup) => cleanup());
+    this.domCleanup = [];
+    this.touchControls?.classList.remove('active');
+    this.touchControls?.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('gameplay-active');
+    Object.keys(this.touch).forEach((key) => (this.touch[key as keyof typeof this.touch] = false));
   }
 }

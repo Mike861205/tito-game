@@ -91,14 +91,13 @@ Abre <http://localhost:5173>.
 
 | Accion | Teclado | Gamepad | Touch |
 |---|---|---|---|
-| Mover | Flechas / A D | Stick o D-pad | Botones `<` `>` |
+| Mover / correr | Flechas / A D + Shift | Stick o D-pad + X | Botones `←` `→` (carrera automatica) |
 | Saltar (mantener = mas alto) | Espacio / Arriba / W | A | Boton `A` |
-| Agacharse | Abajo / S | D-pad abajo | Boton `v` |
-| Correr | Shift | X | - |
-| Disparar arma equipada (roca al iniciar) | E / R | B / RB | - |
-| Enganchar y mantener el lazo volador | Q | Y | - |
-| Subir / bajar mientras usa el lazo | Espacio / Abajo | A / D-pad abajo | `A` / `v` |
-| Pausa | ESC / P | - | - |
+| Agacharse | Abajo / S | D-pad abajo | Boton `BAJAR` |
+| Disparar arma equipada (roca al iniciar) | E / R | B / RB | Boton `DISPARO` |
+| Enganchar y mantener el lazo volador | Q | Y | Boton `LAZO` |
+| Subir / bajar mientras usa el lazo | Espacio / Abajo | A / D-pad abajo | `SALTAR / VOLAR` / `BAJAR` |
+| Pausa y salida con guardado | ESC / P | - | Boton `II` |
 
 ---
 
@@ -177,3 +176,12 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ## Despliegue
 
 Ver [docs/DEPLOY-LIQUIDWEB.md](docs/DEPLOY-LIQUIDWEB.md) y [docs/NEON.md](docs/NEON.md).
+
+### Superadmin local
+
+Con el entorno de desarrollo en ejecucion, abre <http://localhost:5173/superadmin>.
+El panel solo se registra en desarrollo, solo acepta conexiones desde la propia
+computadora y utiliza credenciales guardadas en `.env.superadmin` (ignorado por
+Git). El boton **PUSH + DEPLOY** valida tipos, build y dependencias, crea el
+commit si hay cambios, hace push a `main` y actualiza Liquid Web con migraciones,
+PM2 y una comprobacion HTTPS final.
