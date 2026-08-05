@@ -12,6 +12,8 @@ module.exports = {
       max_memory_restart: '400M',
       env: {
         NODE_ENV: 'production',
+        API_HOST: '127.0.0.1',
+        API_PORT: '3006',
       },
       out_file: '/var/www/tito/logs/api-out.log',
       error_file: '/var/www/tito/logs/api-error.log',

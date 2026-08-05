@@ -45,9 +45,9 @@ nano .env      # valores de PRODUCCION
 
 ```env
 NODE_ENV=production
-API_PORT=3001
+API_PORT=3006
 API_HOST=127.0.0.1
-CORS_ORIGINS=https://tudominio.com
+CORS_ORIGINS=https://tito.systemdem.online
 
 JWT_SECRET=<48 bytes aleatorios>
 SCORE_HMAC_SECRET=<48 bytes aleatorios>
@@ -91,12 +91,12 @@ Comandos utiles: `pm2 status`, `pm2 logs tito-api`, `pm2 reload tito-api`.
 ```bash
 sudo cp /var/www/tito/deploy/nginx-tito.conf /etc/nginx/sites-available/tito
 sudo ln -s /etc/nginx/sites-available/tito /etc/nginx/sites-enabled/tito
-sudo nano /etc/nginx/sites-available/tito     # cambia tudominio.com
+sudo nano /etc/nginx/sites-available/tito     # dominio: tito.systemdem.online
 sudo nginx -t && sudo systemctl reload nginx
 
 # Certificado gratuito
 sudo apt-get install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d tudominio.com -d www.tudominio.com
+sudo certbot --nginx -d tito.systemdem.online
 ```
 
 ## 6. Firewall
@@ -107,7 +107,7 @@ sudo ufw allow 'Nginx Full'
 sudo ufw enable
 ```
 
-El puerto 3001 **no** se expone: solo escucha en `127.0.0.1`.
+El puerto 3006 **no** se expone: solo escucha en `127.0.0.1`.
 
 ---
 
@@ -126,7 +126,7 @@ sudo -u tito -H bash -c 'cd /var/www/tito && \
 
 ## Checklist post-despliegue
 
-- [ ] `curl https://tudominio.com/api/health` responde `"status":"healthy"`
+- [ ] `curl https://tito.systemdem.online/api/health` responde `"status":"healthy"`
 - [ ] El juego carga en el navegador y se ve el logo
 - [ ] Registro e inicio de sesion funcionan
 - [ ] Al terminar un nivel aparece en la tabla de posiciones
