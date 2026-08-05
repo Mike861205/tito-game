@@ -5,12 +5,20 @@ import {
   getLevelDesign,
   getWorld,
   type LevelDesign,
+  type EnemyKind,
   type PowerUp,
 } from '@tito/shared';
 import { Tito, type DeathCause } from '../objects/Tito';
-import { Enemy, enemyScore, isStompable } from '../objects/Enemy';
+import {
+  Enemy,
+  enemyScore,
+  isStompable,
+  type EnemyAttackEvent,
+  type EnemyEggEvent,
+} from '../objects/Enemy';
 import { InputController } from '../systems/InputController';
 import { buildLevel, type BuiltLevel } from '../systems/LevelBuilder';
+import { playAnim } from '../systems/AssetManifest';
 import { TILE_INDEX } from '../systems/TextureFactory';
 import { save } from '../systems/SaveManager';
 import { api } from '../systems/ApiClient';
@@ -31,6 +39,8 @@ export interface HudData {
   lives: number;
   timeLeft: number;
   power: PowerUp;
+  flightEnergy: number;
+  flying: boolean;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -51,6 +61,18 @@ export class GameScene extends Phaser.Scene {
   private finished = false;
   private respawnPoint = { x: 0, y: 0 };
   private runTicket: { runId: string; nonce: string } | null = null;
+  private projectiles!: Phaser.Physics.Arcade.Group;
+  private rocks!: Phaser.Physics.Arcade.Group;
+  private enemyProjectiles!: Phaser.Physics.Arcade.Group;
+  private enemyEggs!: Phaser.Physics.Arcade.Group;
+  private spawnedMinis = 0;
+  private ropeGraphics?: Phaser.GameObjects.Graphics;
+  private grappleAnchor?: Phaser.Physics.Arcade.Sprite;
+  private grappleLength = 100;
+  private nextPowerShotAt = 0;
+  private nextRockAt = 0;
+  private nextMovementHudAt = 0;
+  private powerRewardsGiven = 0;
 
   constructor() {
     super('Game');
@@ -67,6 +89,14 @@ export class GameScene extends Phaser.Scene {
     this.elapsedMs = 0;
     this.finished = false;
     this.timeLeft = this.design.timeLimit;
+    this.runTicket = null;
+    this.grappleAnchor = undefined;
+    this.grappleLength = 100;
+    this.nextPowerShotAt = 0;
+    this.nextRockAt = 0;
+    this.nextMovementHudAt = 0;
+    this.powerRewardsGiven = 0;
+    this.spawnedMinis = 0;
   }
 
   create(): void {
@@ -76,9 +106,30 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, this.built.widthPx, this.built.heightPx + 200);
 
     // --- Tito ---
-    this.tito = new Tito(this, this.built.spawnX, this.built.spawnY);
+    let startX = this.built.spawnX;
+    let startY = this.built.spawnY;
+    const savedCheckpoint = save.getCheckpoint(this.design.world, this.design.level);
+    if (savedCheckpoint !== null) {
+      for (const child of this.built.checkpoints.getChildren()) {
+        const cp = child as Phaser.Physics.Arcade.Sprite;
+        const index = Number(cp.getData('index'));
+        if (index > savedCheckpoint) continue;
+        cp.setData('taken', true);
+        this.activateCheckpointVisual(cp, true);
+        if (index === savedCheckpoint) {
+          startX = cp.x;
+          startY = cp.y;
+        }
+      }
+    }
+    this.tito = new Tito(this, startX, startY);
     this.tito.setFrictionScale(world.modifiers?.frictionScale ?? 1);
-    this.respawnPoint = { x: this.built.spawnX, y: this.built.spawnY };
+    this.respawnPoint = { x: startX, y: startY };
+    this.projectiles = this.physics.add.group({ allowGravity: false });
+    this.rocks = this.physics.add.group();
+    this.enemyProjectiles = this.physics.add.group({ allowGravity: false });
+    this.enemyEggs = this.physics.add.group();
+    this.ropeGraphics = this.add.graphics().setDepth(19);
 
     // --- Camara ---
     this.cameras.main.setBounds(0, 0, this.built.widthPx, this.built.heightPx);
@@ -90,6 +141,27 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.built.enemies, this.built.layer);
     this.physics.add.collider(this.tito, this.built.platforms);
     this.physics.add.collider(this.built.enemies, this.built.platforms);
+    this.physics.add.collider(this.projectiles, this.built.layer, (shot) => shot.destroy());
+    this.physics.add.collider(this.rocks, this.built.layer, (rock) => rock.destroy());
+    this.physics.add.collider(this.enemyProjectiles, this.built.layer, (shot) => shot.destroy());
+    this.physics.add.collider(this.enemyEggs, this.built.layer);
+    this.physics.add.overlap(this.projectiles, this.built.enemies, (shot, enemy) =>
+      this.hitEnemyWithProjectile(shot as Phaser.Physics.Arcade.Sprite, enemy as Enemy),
+    );
+    this.physics.add.overlap(this.rocks, this.built.enemies, (rock, enemy) =>
+      this.hitEnemyWithRock(rock as Phaser.Physics.Arcade.Sprite, enemy as Enemy),
+    );
+    this.physics.add.overlap(this.tito, this.enemyProjectiles, (_player, shot) =>
+      this.hitByEnemyProjectile(shot as Phaser.Physics.Arcade.Sprite),
+    );
+    this.physics.add.overlap(this.projectiles, this.enemyEggs, (shot, egg) => {
+      shot.destroy();
+      this.breakEnemyEgg(egg as Phaser.Physics.Arcade.Sprite);
+    });
+    this.physics.add.overlap(this.rocks, this.enemyEggs, (rock, egg) => {
+      rock.destroy();
+      this.breakEnemyEgg(egg as Phaser.Physics.Arcade.Sprite);
+    });
 
     this.physics.add.overlap(this.tito, this.built.coins, (_p, c) =>
       this.collectCoin(c as Phaser.Physics.Arcade.Sprite),
@@ -121,9 +193,25 @@ export class GameScene extends Phaser.Scene {
     this.emitHud();
 
     // --- Sonidos por evento ---
-    this.events.on('tito:jump', () => audio.play('jump'));
-    this.events.on('tito:hurt', () => audio.play('hurt'));
-    this.events.on('tito:died', (cause: DeathCause) => this.onDeath(cause));
+    const onJump = (): void => audio.play('jump');
+    const onFlight = (): void => {
+      audio.play('spring');
+      this.showFloatingText(this.tito.x, this.tito.y - 62, '¡A VOLAR!', '#ffd166');
+    };
+    const onHurt = (): void => audio.play('hurt');
+    const onDied = (cause: DeathCause): void => this.onDeath(cause);
+    const onEnemyAttack = (data: EnemyAttackEvent): void => this.spawnEnemyProjectile(data);
+    const onEnemyEgg = (data: EnemyEggEvent): void => this.spawnEnemyEgg(data);
+    const onPauseRequest = (): void => this.togglePause();
+    const onExit = (): void => this.prepareExit();
+    this.events.on('tito:jump', onJump);
+    this.events.on('tito:flight', onFlight);
+    this.events.on('tito:hurt', onHurt);
+    this.events.on('tito:died', onDied);
+    this.events.on('enemy:attack', onEnemyAttack);
+    this.events.on('enemy:egg', onEnemyEgg);
+    this.events.on('game:pause-request', onPauseRequest);
+    this.events.on('game:exit', onExit);
 
     // --- Temporizador ---
     this.time.addEvent({
@@ -147,7 +235,16 @@ export class GameScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.controls.destroy();
-      this.events.removeAllListeners();
+      this.events.off('tito:jump', onJump);
+      this.events.off('tito:flight', onFlight);
+      this.events.off('tito:hurt', onHurt);
+      this.events.off('tito:died', onDied);
+      this.events.off('enemy:attack', onEnemyAttack);
+      this.events.off('enemy:egg', onEnemyEgg);
+      this.events.off('game:pause-request', onPauseRequest);
+      this.events.off('game:exit', onExit);
+      this.releaseGrapple();
+      this.ropeGraphics?.destroy();
     });
   }
 
@@ -157,6 +254,11 @@ export class GameScene extends Phaser.Scene {
     this.elapsedMs += delta;
     const input = this.controls.read();
     this.tito.handleInput(input, delta);
+    this.handleActions(input, delta);
+    if (this.tito.power === 'capa' && this.time.now >= this.nextMovementHudAt) {
+      this.nextMovementHudAt = this.time.now + 120;
+      this.emitHud();
+    }
 
     if (this.tito.isDead) {
       if (this.tito.y > this.built.heightPx + 260) this.tito.setActive(false);
@@ -168,6 +270,176 @@ export class GameScene extends Phaser.Scene {
 
     if (this.tito.y > this.built.heightPx + 60) this.tito.die('caida');
     if (this.tito.body.blocked.down) this.comboCount = 0;
+  }
+
+  private spawnEnemyProjectile(data: EnemyAttackEvent): void {
+    if (this.finished || this.tito.isDead || this.enemyProjectiles.countActive(true) >= 10) return;
+    const texture = data.attack === 'bubble' ? 'enemy-bubble' : 'enemy-fire';
+    const shot = this.enemyProjectiles.create(data.x, data.y, texture) as Phaser.Physics.Arcade.Sprite;
+    const speed = data.attack === 'bubble' ? 190 : data.attack === 'spirit' ? 230 : 280;
+    shot.setData('attack', data.attack).setVelocityX(data.direction * speed).setDepth(18);
+    if (data.attack === 'spirit') shot.setTint(0x7c4dff).setScale(1.18);
+    if (data.attack === 'bubble') {
+      this.tweens.add({ targets: shot, y: shot.y - 22, duration: 420, yoyo: true, repeat: 2 });
+    }
+    this.time.delayedCall(3000, () => shot.active && shot.destroy());
+  }
+
+  private hitByEnemyProjectile(shot: Phaser.Physics.Arcade.Sprite): void {
+    if (!shot.active || this.tito.isDead) return;
+    shot.destroy();
+    this.cameras.main.shake(90, 0.004);
+    if (this.tito.takeHit()) this.tito.die('enemigo');
+  }
+
+  private spawnEnemyEgg(data: EnemyEggEvent): void {
+    if (this.finished || this.spawnedMinis >= 12 || this.enemyEggs.countActive(true) >= 4) return;
+    const egg = this.enemyEggs.create(data.x, data.y, 'enemy-egg') as Phaser.Physics.Arcade.Sprite;
+    egg.setData('kind', data.kind).setDepth(17).setBounce(0.35).setVelocity(Phaser.Math.Between(-45, 45), -150);
+    this.tweens.add({ targets: egg, angle: { from: -8, to: 8 }, duration: 180, yoyo: true, repeat: 10 });
+    this.time.delayedCall(2600, () => this.hatchEnemyEgg(egg));
+  }
+
+  private hatchEnemyEgg(egg: Phaser.Physics.Arcade.Sprite): void {
+    if (!egg.active || this.finished || this.spawnedMinis >= 12) return;
+    const kind = egg.getData('kind') as EnemyKind;
+    const { x, y } = egg;
+    egg.destroy();
+    const mini = new Enemy(this, x, y, kind).makeMini();
+    mini.setTarget(this.tito);
+    this.built.enemies.add(mini);
+    mini.startMoving();
+    this.spawnedMinis++;
+    this.showFloatingText(x, y - 28, '¡NACIÓ UN MINI!', '#ffcc80');
+    mini.setAlpha(0.2);
+    this.tweens.add({ targets: mini, alpha: 1, duration: 240, ease: 'Back.easeOut' });
+  }
+
+  private breakEnemyEgg(egg: Phaser.Physics.Arcade.Sprite): void {
+    if (!egg.active) return;
+    const { x, y } = egg;
+    egg.destroy();
+    this.addScore(150, x, y - 10);
+    this.showFloatingText(x, y - 34, 'HUEVO DETENIDO', '#fff8e1');
+  }
+
+  private handleActions(input: ReturnType<InputController['read']>, delta: number): void {
+    if (input.actionJustPressed || input.rockJustPressed) this.shootEquippedWeapon();
+    if (input.ropeJustPressed) this.attachGrapple();
+
+    if (!this.grappleAnchor) return;
+    if (!input.ropeDown || !this.grappleAnchor.active) {
+      this.releaseGrapple();
+      return;
+    }
+
+    const anchor = this.grappleAnchor;
+    this.ropeGraphics?.clear().lineStyle(3, 0xffd180, 0.95).lineBetween(this.tito.x, this.tito.y - 25, anchor.x, anchor.y);
+    const dx = anchor.x - this.tito.x;
+    const dy = anchor.y - (this.tito.y - 20);
+    const distance = Math.hypot(dx, dy) || 1;
+    const dt = delta / 1000;
+    const body = this.tito.body;
+
+    // El lazo funciona como arnes: elimina la gravedad, regula la altura y
+    // conserva la inercia horizontal para balancearse.
+    body.setAllowGravity(false);
+    const requestedLength = input.jumpDown ? 62 : input.down ? 150 : 96;
+    this.grappleLength = Phaser.Math.Linear(
+      this.grappleLength,
+      requestedLength,
+      Math.min(1, delta * 0.006),
+    );
+
+    const stretch = distance - this.grappleLength;
+    if (stretch > 0) {
+      const pull = Math.min(2800, 900 + stretch * 15);
+      body.velocity.x += (dx / distance) * pull * dt;
+      body.velocity.y += (dy / distance) * pull * dt;
+    }
+
+    if (input.jumpDown) body.velocity.y -= 720 * dt;
+    if (input.down) body.velocity.y += 520 * dt;
+    if (!input.jumpDown && !input.down && Math.abs(stretch) < 24) body.velocity.y *= 0.9;
+
+    body.velocity.x = Phaser.Math.Clamp(body.velocity.x, -440, 440);
+    body.velocity.y = Phaser.Math.Clamp(body.velocity.y, -520, 360);
+  }
+
+  private attachGrapple(): void {
+    let best: Phaser.Physics.Arcade.Sprite | undefined;
+    let bestDistance = 330;
+    for (const child of this.built.grappleAnchors.getChildren()) {
+      const anchor = child as Phaser.Physics.Arcade.Sprite;
+      const dy = this.tito.y - anchor.y;
+      const distance = Phaser.Math.Distance.Between(this.tito.x, this.tito.y - 20, anchor.x, anchor.y);
+      if (anchor.active && dy > 35 && distance < bestDistance) {
+        best = anchor;
+        bestDistance = distance;
+      }
+    }
+    if (!best) {
+      this.showFloatingText(this.tito.x, this.tito.y - 65, 'Sin agarre cerca', '#ffe082');
+      return;
+    }
+    this.grappleAnchor = best;
+    this.grappleLength = 96;
+    this.tito.body.setAllowGravity(false);
+    this.tito.body.velocity.y = Math.min(this.tito.body.velocity.y, -120);
+    best.setTint(0xffffff);
+    this.showFloatingText(this.tito.x, this.tito.y - 68, 'LAZO VOLADOR', '#ffe082');
+    audio.play('spring');
+  }
+
+  private releaseGrapple(): void {
+    this.grappleAnchor?.clearTint();
+    this.grappleAnchor = undefined;
+    if (this.tito?.body) this.tito.body.setAllowGravity(true);
+    this.ropeGraphics?.clear();
+  }
+
+  private shootEquippedWeapon(): void {
+    if (this.tito.power !== 'fuego' && this.tito.power !== 'hielo') {
+      this.throwRock();
+      return;
+    }
+    if (this.time.now < this.nextPowerShotAt) return;
+    this.nextPowerShotAt = this.time.now + 420;
+    const element = this.tito.power;
+    const shot = this.projectiles.create(
+      this.tito.x + this.tito.facing * 24,
+      this.tito.y - 28,
+      element === 'fuego' ? 'projectile-fire' : 'projectile-ice',
+    ) as Phaser.Physics.Arcade.Sprite;
+    shot.setData('element', element).setVelocityX(this.tito.facing * 440).setDepth(18);
+    (shot.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    this.time.delayedCall(1400, () => shot.active && shot.destroy());
+    audio.play('block');
+  }
+
+  private throwRock(): void {
+    if (this.time.now < this.nextRockAt) return;
+    this.nextRockAt = this.time.now + 850;
+    const rock = this.rocks.create(this.tito.x + this.tito.facing * 20, this.tito.y - 30, 'throw-rock') as Phaser.Physics.Arcade.Sprite;
+    rock.setVelocity(this.tito.facing * 310, -260).setAngularVelocity(this.tito.facing * 540).setDepth(18);
+    rock.setBounce(0.25);
+    this.time.delayedCall(1800, () => rock.active && rock.destroy());
+  }
+
+  private hitEnemyWithProjectile(shot: Phaser.Physics.Arcade.Sprite, enemy: Enemy): void {
+    if (!shot.active || !enemy.active) return;
+    const element = shot.getData('element') as 'fuego' | 'hielo';
+    shot.destroy();
+    if (element === 'hielo') enemy.freeze();
+    if (enemy.damage(element === 'fuego' ? 2 : 1)) this.defeatEnemy(enemy, true);
+    else this.showFloatingText(enemy.x, enemy.y - 24, element === 'hielo' ? 'CONGELADO' : '¡FUEGO!', element === 'hielo' ? '#81d4fa' : '#ffb74d');
+  }
+
+  private hitEnemyWithRock(rock: Phaser.Physics.Arcade.Sprite, enemy: Enemy): void {
+    if (!rock.active || !enemy.active) return;
+    rock.destroy();
+    if (enemy.damage()) this.defeatEnemy(enemy, true);
+    else this.showFloatingText(enemy.x, enemy.y - 24, '¡ROCA!', '#bcaaa4');
   }
 
   /** Pinchos y lava (no tienen colision fisica, se detectan por tile). */
@@ -228,7 +500,7 @@ export class GameScene extends Phaser.Scene {
 
   private spawnFromBlock(x: number, y: number, isPower: boolean): void {
     if (!isPower) {
-      const coin = this.add.image(x, y - 12, 'coin').setDepth(12);
+      const coin = this.add.image(x, y - 12, 'coin').setDepth(12).setDisplaySize(21, 21);
       this.tweens.add({
         targets: coin,
         y: y - 60,
@@ -242,14 +514,42 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const kinds: PowerUp[] = ['grande', 'fuego', 'estrella'];
-    const kind = kinds[Math.floor(Math.random() * kinds.length)]!;
+    // El primer bloque de premio de cada nivel entrega la capa para que deba
+    // ganarse dentro del recorrido. Los siguientes alternan armas y capa.
+    const laterPrizes: PowerUp[] = ['fuego', 'hielo', 'capa', 'capa'];
+    const kind: PowerUp =
+      this.powerRewardsGiven === 0 ? 'capa' : laterPrizes[Math.floor(Math.random() * laterPrizes.length)]!;
+    this.powerRewardsGiven++;
     const item = this.physics.add.sprite(x, y - TILE_SIZE, `powerup-${kind}`).setDepth(12);
+    playAnim(item, `powerup-${kind}-idle`);
+    if (kind === 'capa' && !item.anims.isPlaying) {
+      this.tweens.add({
+        targets: item,
+        angle: { from: -8, to: 8 },
+        duration: 520,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
     item.setVelocityX(80).setBounceX(1).setCollideWorldBounds(true);
     this.physics.add.collider(item, this.built.layer);
     this.physics.add.overlap(this.tito, item, () => {
       this.tito.applyPowerUp(kind);
-      this.addScore(1000, item.x, item.y);
+      if (kind === 'capa') {
+        this.events.emit(
+          'hud:tip',
+          'Corre con SHIFT hasta tomar impulso, salta y mantén ESPACIO para volar. Pulsa ↓ para descender.',
+          '¡La velocidad me lleva más alto!',
+        );
+      }
+      this.showFloatingText(
+        item.x,
+        item.y - 24,
+        kind === 'fuego' ? 'ARMA: FUEGO' : kind === 'hielo' ? 'ARMA: HIELO' : '¡CAPA ALADA!',
+        kind === 'fuego' ? '#ffb74d' : kind === 'hielo' ? '#81d4fa' : '#ffd166',
+      );
+      this.addScore(kind === 'capa' ? 1500 : 1000, item.x, item.y);
       audio.play('power');
       item.destroy();
       this.emitHud();
@@ -258,9 +558,14 @@ export class GameScene extends Phaser.Scene {
 
   private collectCoin(coin: Phaser.Physics.Arcade.Sprite): void {
     if (!coin.active) return;
+    const units = Number(coin.getData('units') ?? 1);
+    const points = Number(coin.getData('score') ?? SCORE.silverCoin);
+    const currency = String(coin.getData('currency') ?? 'silver');
     coin.disableBody(true, true);
-    this.coins++;
-    this.addScore(SCORE.coin, coin.x, coin.y);
+    this.coins += units;
+    this.addScore(points, coin.x, coin.y);
+    if (currency === 'gold') this.showFloatingText(coin.x, coin.y - 24, 'CENTENARIO +5', '#ffd54f');
+    if (currency === 'note') this.showFloatingText(coin.x, coin.y - 24, 'BILLETE +10', '#80deea');
     audio.play('coin');
     if (this.coins > 0 && this.coins % 100 === 0) this.lives = Math.min(9, this.lives + 1);
     this.emitHud();
@@ -278,17 +583,64 @@ export class GameScene extends Phaser.Scene {
     if (this.tito.body.velocity.y < 0) return;
     this.tito.springJump();
     audio.play('spring');
-    this.tweens.add({ targets: spring, scaleY: 0.6, duration: 90, yoyo: true });
+    if (playAnim(spring, 'spring-bounce', false)) {
+      spring.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => spring.setFrame(0));
+    } else {
+      this.tweens.add({ targets: spring, scaleY: 0.6, duration: 90, yoyo: true });
+    }
   }
 
   private hitCheckpoint(cp: Phaser.Physics.Arcade.Sprite): void {
     if (cp.getData('taken')) return;
     cp.setData('taken', true);
-    cp.setTint(0x4caf50);
+    this.activateCheckpointVisual(cp, false);
     this.respawnPoint = { x: cp.x, y: cp.y };
+    const checkpointIndex = Number(cp.getData('index'));
+    save.setCheckpoint(this.design.world, this.design.level, checkpointIndex);
+    save.progress.lives = this.lives;
+    save.save();
     this.addScore(SCORE.checkpoint, cp.x, cp.y - 40);
     audio.play('checkpoint');
-    this.showFloatingText(cp.x, cp.y - 70, 'CHECKPOINT', '#4caf50');
+    this.showFloatingText(cp.x, cp.y - 78, `BANDERA ${checkpointIndex + 1} GUARDADA`, '#78f3ff');
+  }
+
+  private activateCheckpointVisual(cp: Phaser.Physics.Arcade.Sprite, restored: boolean): void {
+    if (!playAnim(cp, 'checkpoint-on', false)) cp.setTint(0xbffcff);
+    if (cp.getData('glow')) return;
+
+    const glow = this.add
+      .ellipse(cp.x, cp.y - cp.displayHeight * 0.48, cp.displayWidth * 1.8, cp.displayHeight * 1.05, 0x51dcff, 0.16)
+      .setDepth(7)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    cp.setData('glow', glow);
+    this.tweens.add({
+      targets: glow,
+      alpha: { from: restored ? 0.08 : 0.28, to: 0.08 },
+      scaleX: { from: 0.82, to: 1.15 },
+      scaleY: { from: 0.9, to: 1.08 },
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    if (!restored) {
+      for (let i = 0; i < 8; i++) {
+        const spark = this.add
+          .circle(cp.x + Phaser.Math.Between(-18, 18), cp.y - Phaser.Math.Between(20, 66), Phaser.Math.FloatBetween(1.5, 3), i % 2 ? 0xffffff : 0x63e9ff, 0.95)
+          .setDepth(13)
+          .setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+          targets: spark,
+          y: spark.y - Phaser.Math.Between(24, 58),
+          x: spark.x + Phaser.Math.Between(-12, 12),
+          alpha: 0,
+          scale: 0.2,
+          duration: Phaser.Math.Between(500, 900),
+          onComplete: () => spark.destroy(),
+        });
+      }
+    }
   }
 
   private hitEnemy(enemy: Enemy): void {
@@ -346,6 +698,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onDeath(cause: DeathCause): void {
+    this.releaseGrapple();
     this.deaths++;
     audio.play('die');
     this.cameras.main.shake(200, 0.008);
@@ -390,6 +743,7 @@ export class GameScene extends Phaser.Scene {
   private completeLevel(): void {
     if (this.finished) return;
     this.finished = true;
+    this.releaseGrapple();
     audio.play('goal');
     this.tito.body.setVelocity(0, 0);
 
@@ -405,6 +759,7 @@ export class GameScene extends Phaser.Scene {
 
     save.progress.lives = this.lives;
     save.progress.coins += this.coins;
+    save.clearCheckpoint(this.design.world, this.design.level);
     save.completeLevel(this.design.world, this.design.level, {
       score: total,
       timeMs: Math.round(this.elapsedMs),
@@ -456,6 +811,15 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('Pause', { world: this.design.world, level: this.design.level });
   }
 
+  private prepareExit(): void {
+    if (this.finished) return;
+    this.finished = true;
+    this.releaseGrapple();
+    save.progress.lives = this.lives;
+    save.save();
+    void this.finishRun(false);
+  }
+
   private emitHud(): void {
     const data: HudData = {
       world: this.design.world,
@@ -466,6 +830,8 @@ export class GameScene extends Phaser.Scene {
       lives: this.lives,
       timeLeft: this.timeLeft,
       power: this.tito?.power ?? 'none',
+      flightEnergy: this.tito?.flightEnergy ?? 0,
+      flying: this.tito?.isFlying ?? false,
     };
     this.events.emit('hud:update', data);
   }

@@ -10,6 +10,7 @@ import { api } from './ApiClient';
 
 const STORAGE_KEY = 'tito.progress.v1';
 const SETTINGS_KEY = 'tito.settings.v1';
+const CHECKPOINTS_KEY = 'tito.checkpoints.v1';
 
 export interface Settings {
   musicVolume: number;
@@ -38,6 +39,7 @@ function defaultProgress(): Progress {
 class SaveManager {
   progress: Progress = defaultProgress();
   settings: Settings = defaultSettings;
+  private checkpoints: Record<string, number> = {};
 
   load(): void {
     try {
@@ -46,11 +48,44 @@ class SaveManager {
     } catch {
       this.progress = defaultProgress();
     }
+    this.sanitizeProgress();
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
       if (raw) this.settings = { ...defaultSettings, ...(JSON.parse(raw) as Settings) };
     } catch {
       this.settings = defaultSettings;
+    }
+    try {
+      const raw = localStorage.getItem(CHECKPOINTS_KEY);
+      const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      this.checkpoints = Object.fromEntries(
+        Object.entries(parsed).filter((entry): entry is [string, number] =>
+          Number.isInteger(entry[1]) && Number(entry[1]) >= 0,
+        ),
+      );
+    } catch {
+      this.checkpoints = {};
+    }
+  }
+
+  /**
+   * Corrige un progreso guardado invalido (ej. version anterior del juego)
+   * para que `currentWorld`/`currentLevel` siempre apunten a un nivel real
+   * y `unlocked` nunca quede vacio. Sin esto, `getLevelDesign` puede tirar
+   * y dejar el Mapa de Mundos sin poder abrirse.
+   */
+  private sanitizeProgress(): void {
+    const validWorld = WORLD_IDS.includes(this.progress.currentWorld as (typeof WORLD_IDS)[number]);
+    const validLevel =
+      Number.isInteger(this.progress.currentLevel) &&
+      this.progress.currentLevel >= 1 &&
+      this.progress.currentLevel <= LEVELS_PER_WORLD;
+    if (!validWorld || !validLevel) {
+      this.progress.currentWorld = 1;
+      this.progress.currentLevel = 1;
+    }
+    if (!Array.isArray(this.progress.unlocked) || this.progress.unlocked.length === 0) {
+      this.progress.unlocked = [levelId(1, 1)];
     }
   }
 
@@ -98,6 +133,27 @@ class SaveManager {
     if (!this.progress.unlocked.includes(id)) this.progress.unlocked.push(id);
   }
 
+  /** Guarda la bandera mas avanzada alcanzada en un nivel. */
+  setCheckpoint(world: number, level: number, checkpointIndex: number): void {
+    const id = levelId(world, level);
+    const previous = this.checkpoints[id] ?? -1;
+    if (checkpointIndex <= previous) return;
+    this.checkpoints[id] = checkpointIndex;
+    localStorage.setItem(CHECKPOINTS_KEY, JSON.stringify(this.checkpoints));
+  }
+
+  getCheckpoint(world: number, level: number): number | null {
+    const value = this.checkpoints[levelId(world, level)];
+    return typeof value === 'number' && Number.isInteger(value) ? value : null;
+  }
+
+  clearCheckpoint(world: number, level: number): void {
+    const id = levelId(world, level);
+    if (!(id in this.checkpoints)) return;
+    delete this.checkpoints[id];
+    localStorage.setItem(CHECKPOINTS_KEY, JSON.stringify(this.checkpoints));
+  }
+
   /** Registra el resultado de un nivel completado. */
   completeLevel(
     world: number,
@@ -137,6 +193,8 @@ class SaveManager {
 
   reset(): void {
     this.progress = defaultProgress();
+    this.checkpoints = {};
+    localStorage.removeItem(CHECKPOINTS_KEY);
     this.save();
   }
 }

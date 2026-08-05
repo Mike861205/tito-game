@@ -24,7 +24,13 @@
     "db:push": "npm run db:push --workspace @tito/api",
     "db:migrate": "npm run db:migrate --workspace @tito/api",
     "db:studio": "npm run db:studio --workspace @tito/api",
-    "db:seed": "npm run db:seed --workspace @tito/api"
+    "db:seed": "npm run db:seed --workspace @tito/api",
+    "db:check": "npm run db:check --workspace @tito/api",
+    "db:push:prod": "npm run db:push:prod --workspace @tito/api",
+    "db:deploy:prod": "npm run db:deploy:prod --workspace @tito/api",
+    "db:studio:prod": "npm run db:studio:prod --workspace @tito/api",
+    "db:seed:prod": "npm run db:seed:prod --workspace @tito/api",
+    "db:check:prod": "npm run db:check:prod --workspace @tito/api"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

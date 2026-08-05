@@ -10,11 +10,17 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:push": "dotenv -e ../../.env -- prisma db push",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "db:studio": "dotenv -e ../../.env -- prisma studio",
+    "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "db:check": "dotenv -e ../../.env -- tsx prisma/check.ts",
+    "db:push:prod": "dotenv -e ../../.env.production -- prisma db push",
+    "db:deploy:prod": "dotenv -e ../../.env.production -- prisma migrate deploy",
+    "db:studio:prod": "dotenv -e ../../.env.production -- prisma studio",
+    "db:seed:prod": "dotenv -e ../../.env.production -- tsx prisma/seed.ts",
+    "db:check:prod": "dotenv -e ../../.env.production -- tsx prisma/check.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -37,6 +43,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.10",
+    "dotenv-cli": "^11.0.0",
     "prisma": "^6.2.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"

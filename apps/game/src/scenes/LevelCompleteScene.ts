@@ -19,6 +19,7 @@ export interface LevelCompleteData {
 
 export class LevelCompleteScene extends Phaser.Scene {
   private result!: LevelCompleteData;
+  private navigating = false;
 
   constructor() {
     super('LevelComplete');
@@ -26,6 +27,7 @@ export class LevelCompleteScene extends Phaser.Scene {
 
   init(data: LevelCompleteData): void {
     this.result = data;
+    this.navigating = false;
   }
 
   create(): void {
@@ -69,7 +71,7 @@ export class LevelCompleteScene extends Phaser.Scene {
       ['Bono de tiempo', `+${this.result.timeBonus.toLocaleString('es-MX')}`],
       ['Bono de vidas', `+${this.result.livesBonus.toLocaleString('es-MX')}`],
       ['Sin morir', this.result.noDamage ? `+${this.result.noDamage.toLocaleString('es-MX')}` : '-'],
-      ['Monedas', `${this.result.coins}`],
+      ['Valor del tesoro', `${this.result.coins}`],
       ['Tiempo', formatTime(this.result.timeMs)],
     ];
 
@@ -95,7 +97,7 @@ export class LevelCompleteScene extends Phaser.Scene {
         width / 2 - 160,
         height - 60,
         `SIGUIENTE ${next.world}-${next.level}`,
-        () => this.scene.start('Game', { world: next.world, level: next.level, lives: this.result.lives }),
+        () => this.goToLevel(next.world, next.level),
         { width: 280 },
       );
     } else {
@@ -108,7 +110,7 @@ export class LevelCompleteScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
 
-    createButton(this, width / 2 + 160, height - 60, 'MAPA DE MUNDOS', () => this.scene.start('WorldMap'), {
+    createButton(this, width / 2 + 160, height - 60, 'MAPA DE MUNDOS', () => this.goToMap(), {
       width: 280,
       color: 0x30363d,
       hoverColor: 0x3d444d,
@@ -117,9 +119,37 @@ export class LevelCompleteScene extends Phaser.Scene {
     save.progress.lives = this.result.lives;
     save.save();
 
-    this.input.keyboard?.on('keydown-ENTER', () => {
-      if (next) this.scene.start('Game', { world: next.world, level: next.level, lives: this.result.lives });
-      else this.scene.start('WorldMap');
+    const onEnter = (): void => {
+      if (next) this.goToLevel(next.world, next.level);
+      else this.goToMap();
+    };
+    this.input.keyboard?.on('keydown-ENTER', onEnter);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.keyboard?.off('keydown-ENTER', onEnter);
+    });
+  }
+
+  private goToLevel(world: number, level: number): void {
+    if (this.navigating) return;
+    this.navigating = true;
+    this.input.enabled = false;
+    // Hacer el cambio en el siguiente tick evita desmontar la escena dentro
+    // del mismo pointerdown que pulso el boton.
+    this.time.delayedCall(0, () => {
+      this.scene.stop('Hud');
+      this.scene.stop('Pause');
+      this.scene.start('Game', { world, level, lives: this.result.lives });
+    });
+  }
+
+  private goToMap(): void {
+    if (this.navigating) return;
+    this.navigating = true;
+    this.input.enabled = false;
+    this.time.delayedCall(0, () => {
+      this.scene.stop('Hud');
+      this.scene.stop('Pause');
+      this.scene.start('WorldMap');
     });
   }
 }

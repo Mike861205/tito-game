@@ -17,14 +17,17 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   backgroundColor: '#0d1117',
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
-  pixelArt: true,
-  roundPixels: true,
-  antialias: false,
+  pixelArt: false,
+  roundPixels: false,
+  antialias: true,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    min: { width: 480, height: 270 },
-    max: { width: 1920, height: 1080 },
+    // Redondea el tamano del canvas: evita medios pixeles al escalar en moviles.
+    autoRound: true,
+    expandParent: true,
+    min: { width: 320, height: 180 },
+    max: { width: 2560, height: 1440 },
   },
   physics: {
     default: 'arcade',

@@ -72,6 +72,11 @@ class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
 
+  /** El volumen guardado puede venir corrupto de una version vieja. */
+  private static safeVolume(v: unknown): number {
+    return typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.7;
+  }
+
   private ensure(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     if (!this.ctx) {
@@ -79,7 +84,7 @@ class AudioManager {
       if (!Ctor) return null;
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = save.settings.sfxVolume;
+      this.master.gain.value = AudioManager.safeVolume(save.settings.sfxVolume);
       this.master.connect(this.ctx.destination);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -87,26 +92,35 @@ class AudioManager {
   }
 
   setVolume(v: number): void {
-    if (this.master) this.master.gain.value = v;
+    if (this.master) this.master.gain.value = AudioManager.safeVolume(v);
   }
 
   play(name: SfxName): void {
-    const ctx = this.ensure();
+    let ctx: AudioContext | null = null;
+    try {
+      ctx = this.ensure();
+    } catch {
+      return;
+    }
     if (!ctx || !this.master) return;
 
-    for (const tone of SFX[name]) {
-      const start = ctx.currentTime + (tone.delay ?? 0);
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = tone.type;
-      osc.frequency.setValueAtTime(tone.freq, start);
-      if (tone.to) osc.frequency.exponentialRampToValueAtTime(tone.to, start + tone.dur);
-      gain.gain.setValueAtTime(tone.gain, start);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.dur);
-      osc.connect(gain);
-      gain.connect(this.master);
-      osc.start(start);
-      osc.stop(start + tone.dur + 0.02);
+    try {
+      for (const tone of SFX[name]) {
+        const start = ctx.currentTime + (tone.delay ?? 0);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = tone.type;
+        osc.frequency.setValueAtTime(tone.freq, start);
+        if (tone.to) osc.frequency.exponentialRampToValueAtTime(tone.to, start + tone.dur);
+        gain.gain.setValueAtTime(tone.gain, start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.dur);
+        osc.connect(gain);
+        gain.connect(this.master);
+        osc.start(start);
+        osc.stop(start + tone.dur + 0.02);
+      }
+    } catch {
+      /* un fallo de audio nunca debe cortar la jugabilidad */
     }
   }
 }

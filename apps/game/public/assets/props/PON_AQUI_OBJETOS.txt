@@ -1,0 +1,24 @@
+Coloca aqui los PNG de OBJETOS. Nombres exactos (no cambiar):
+
+  coin-silver.png         alta resolucion -> moneda de plata con ajolote, valor 1
+  coin-gold.png           alta resolucion -> centenario ficticio dorado, valor 5
+  banknote-tito.png       alta resolucion -> billete conmemorativo ficticio, valor 10
+  gem.png                 156 x 26   -> 6 frames de 26 x 26   brillo de la gema (10 fps)
+  spring.png              128 x 20   -> 4 frames de 32 x 20   frame 0 = reposo, 1-3 = estirarse
+  checkpoint.png           96 x 56   -> 4 frames de 24 x 56   0-1 apagado, 2-3 activado
+  goal-flag.png           128 x 96   -> 4 frames de 32 x 96   bandera de meta ondeando
+  powerup-grande.png      104 x 26   -> 4 frames de 26 x 26   power-up de crecer
+  powerup-fuego.png       104 x 26   -> 4 frames de 26 x 26   power-up de fuego
+  powerup-estrella.png    104 x 26   -> 4 frames de 26 x 26   power-up de invencibilidad
+  platform-h.png          384 x 20   -> 4 frames de 96 x 20   plataforma movil (3 tiles)
+  particle.png              8 x 8    -> imagen estatica       chispa de particulas
+
+Reglas:
+- Frames en UNA SOLA FILA horizontal, de izquierda a derecha.
+- PNG con transparencia, pixel art sin antialias.
+- spring, checkpoint y goal-flag se dibujan con el ORIGEN ABAJO:
+  apoya el objeto en el borde inferior del frame.
+- monedas, billete, gemas y power-ups se centran en el frame.
+
+Las monedas y el billete incluidos son estaticos; el juego anima giro,
+flotacion e inclinacion mediante tweens.

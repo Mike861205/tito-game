@@ -1,0 +1,18 @@
+Coloca aqui los tilesets de cada mundo. Nombres exactos (no cambiar):
+
+  world-1.png   256 x 32   Praderas de Tito
+  world-2.png   256 x 32   Desierto Dorado
+  world-3.png   256 x 32   Cavernas de Hielo
+  world-4.png   256 x 32   (mundo 4)
+  world-5.png   256 x 32   (mundo 5)
+
+Cada archivo son 8 tiles de 32 x 32 px en UNA FILA, en este orden exacto:
+
+  0 solido      1 plataforma   2 ladrillo    3 bloque "?"
+  4 bloque poder 5 pinchos     6 lava/agua   7 bloque usado
+
+Reglas:
+- Sin separacion ni margen entre tiles (0 px de spacing y de margin).
+- El tile 1 (plataforma) es "one-way": se atraviesa desde abajo.
+- Los tiles 5 (pinchos) y 6 (lava) matan a Tito.
+- El tile 5 puede tener transparencia arriba; los demas conviene que sean opacos.

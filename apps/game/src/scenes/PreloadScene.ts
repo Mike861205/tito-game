@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { TITO_FRAME_HEIGHT, TITO_FRAME_WIDTH, WORLDS } from '@tito/shared';
+import { WORLDS } from '@tito/shared';
 import { createTitoAnimations } from '../objects/Tito';
+import { ASSET_MANIFEST, registerAllAssetAnims } from '../systems/AssetManifest';
 import {
   createBackgroundTextures,
   createEnemyTextures,
@@ -9,6 +10,7 @@ import {
   createTileset,
   createTitoSpritesheet,
 } from '../systems/TextureFactory';
+import { buildTitoSheetFromArt, TITO_ART_KEY, TITO_HD_KEY } from '../systems/TitoRig';
 
 /**
  * Intenta cargar tus assets reales desde /public/assets.
@@ -40,20 +42,25 @@ export class PreloadScene extends Phaser.Scene {
     this.load.setPath('assets');
 
     // Solo se cargan los assets que existen (detectados en BootScene).
-    if (this.available.includes('tito')) {
-      this.load.spritesheet('tito', 'characters/tito.png', {
-        frameWidth: TITO_FRAME_WIDTH,
-        frameHeight: TITO_FRAME_HEIGHT,
-      });
-    }
-    if (this.available.includes('logo')) {
-      this.load.image('logo', 'branding/logo.png');
+    for (const entry of ASSET_MANIFEST) {
+      if (!this.available.includes(entry.key)) continue;
+      if (entry.frameWidth && entry.frameHeight) {
+        this.load.spritesheet(entry.key, entry.url, {
+          frameWidth: entry.frameWidth,
+          frameHeight: entry.frameHeight,
+        });
+      } else {
+        this.load.image(entry.key, entry.url);
+      }
     }
   }
 
   create(): void {
-    // Placeholders para lo que no exista
+    // Tito: primero la hoja propia, si no la que se hornea del arte de branding.
+    if (!this.textures.exists('tito')) buildTitoSheetFromArt(this);
     if (!this.textures.exists('tito')) createTitoSpritesheet(this, 'tito');
+    // Version grande y sin pixelar para el retrato del menu.
+    buildTitoSheetFromArt(this, TITO_ART_KEY, TITO_HD_KEY, 4);
     if (!this.textures.exists('logo')) createLogoTexture(this, 'logo');
 
     createEnemyTextures(this);
@@ -64,6 +71,8 @@ export class PreloadScene extends Phaser.Scene {
     }
 
     createTitoAnimations(this);
+    createTitoAnimations(this, TITO_HD_KEY);
+    registerAllAssetAnims(this);
 
     this.scene.start('Menu');
   }

@@ -35,7 +35,10 @@ for (const design of LEVELS) {
 
   const spawn = count(TILE.SPAWN);
   const goal = count(TILE.GOAL);
-  const coins = count(TILE.COIN);
+  const silver = count(TILE.COIN);
+  const gold = count(TILE.GOLD_COIN);
+  const notes = count(TILE.BANKNOTE);
+  const coins = silver + gold + notes;
   const gems = count(TILE.GEM);
   const enemies = flat.filter((c) => ENEMY_CHARS.includes(c)).length;
 
@@ -47,7 +50,7 @@ for (const design of LEVELS) {
       design.id.padEnd(4),
       design.name.padEnd(28),
       `ancho=${String(level.width).padStart(3)}`,
-      `monedas=${String(coins).padStart(3)}`,
+      `tesoro=${String(coins).padStart(3)} (${silver}p/${gold}o/${notes}b)`,
       `gemas=${gems}`,
       `enemigos=${String(enemies).padStart(2)}`,
       `checkpoints=${level.checkpoints.length}`,

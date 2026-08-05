@@ -1,0 +1,11 @@
+Los cinco enemigos comunes ya tienen arte 3D original con transparencia:
+
+  goomb-sheet.png    -> conejo explorador que corre y salta
+  spiker-sheet.png   -> dragon espinoso que camina y lanza fuego
+  flyer-sheet.png    -> anguila celeste que ondula y dispara burbujas
+  slider-sheet.png   -> centauro con ciclo de galope y carga
+  ghost-sheet.png    -> avatar elemental que gesticula y dispara energia
+  boss.png     256 x 64   -> 4 frames de 64 x 64   (jefe de mundo)
+
+Cada hoja comun mide 1024 x 256: cuatro cuadros de 256 x 256 en una fila.
+El juego combina esos cuadros con fisica, inclinacion y squash/stretch.

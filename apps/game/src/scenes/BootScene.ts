@@ -1,12 +1,7 @@
 import Phaser from 'phaser';
 import { save } from '../systems/SaveManager';
 import { api } from '../systems/ApiClient';
-
-/** Assets opcionales: si el archivo no esta, se usa un placeholder generado. */
-const OPTIONAL_ASSETS: Array<{ key: string; url: string }> = [
-  { key: 'tito', url: 'assets/characters/tito.png' },
-  { key: 'logo', url: 'assets/branding/logo.png' },
-];
+import { ASSET_MANIFEST } from '../systems/AssetManifest';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -29,9 +24,9 @@ export class BootScene extends Phaser.Scene {
 
   private async detectAssets(): Promise<string[]> {
     const results = await Promise.all(
-      OPTIONAL_ASSETS.map(async ({ key, url }) => {
+      ASSET_MANIFEST.map(async ({ key, url }) => {
         try {
-          const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+          const res = await fetch(`assets/${url}`, { method: 'HEAD', cache: 'no-store' });
           const type = res.headers.get('content-type') ?? '';
           return res.ok && type.startsWith('image/') ? key : null;
         } catch {

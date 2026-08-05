@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { getWorld } from '@tito/shared';
 import type { HudData } from './GameScene';
-import { formatTime } from '../ui/Widgets';
+import { createButton, formatTime } from '../ui/Widgets';
 
 export class HudScene extends Phaser.Scene {
   private scoreText!: Phaser.GameObjects.Text;
@@ -38,13 +38,23 @@ export class HudScene extends Phaser.Scene {
     this.timeText = this.add.text(width - 16, 12, '', style(17, '#e6edf3')).setOrigin(1, 0);
 
     this.add
-      .text(width - 16, this.scale.height - 20, 'ESC / P = pausa', {
+      .text(width - 16, this.scale.height - 20, 'SHIFT = impulso  |  ESPACIO = saltar / volar  |  ↓ = bajar  |  E / R = disparar  |  Q = lazo', {
         fontSize: '12px',
-        color: '#8b949e',
+        color: '#ffffff',
+        backgroundColor: 'rgba(13,17,23,0.65)',
+        padding: { x: 8, y: 4 },
       })
       .setOrigin(1, 0.5);
 
     const game = data.gameScene;
+    createButton(this, 76, this.scale.height - 24, 'SALIR / PAUSA', () => game.events.emit('game:pause-request'), {
+      width: 132,
+      height: 32,
+      fontSize: 12,
+      color: 0x3a294d,
+      hoverColor: 0x60407d,
+      radius: 12,
+    }).setDepth(1100);
     game.events.on('hud:update', (d: HudData) => this.refresh(d));
     game.events.on('hud:tip', (tip: string, taunt: string) => this.showTip(tip, taunt));
 
@@ -58,9 +68,17 @@ export class HudScene extends Phaser.Scene {
     const world = getWorld(d.world);
     this.levelText.setText(`${world.name}  ${d.world}-${d.level}`);
     this.scoreText.setText(`PUNTOS ${d.score.toString().padStart(6, '0')}`);
-    this.coinText.setText(`MONEDAS ${d.coins}`);
+    this.coinText.setText(`TESORO ${d.coins}`);
     this.livesText.setText(`VIDAS ${d.lives}`);
-    this.powerText.setText(d.power === 'none' ? '' : `PODER: ${d.power.toUpperCase()}`);
+    if (d.power === 'capa') {
+      const energy = Math.round(d.flightEnergy);
+      this.powerText
+        .setText(`CAPA: ${d.flying ? 'VOLANDO' : 'IMPULSO'} ${energy}%`)
+        .setColor(d.flying ? '#ffd166' : '#ffcc80');
+    } else {
+      const weapon = d.power === 'fuego' || d.power === 'hielo' ? d.power.toUpperCase() : 'ROCA';
+      this.powerText.setText(`ARMA: ${weapon}`).setColor('#a5d6a7');
+    }
     this.timeText.setText(`TIEMPO ${formatTime(d.timeLeft * 1000)}`);
     this.timeText.setColor(d.timeLeft <= 30 ? '#ff5252' : '#e6edf3');
   }

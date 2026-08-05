@@ -1,0 +1,10 @@
+Coloca aqui los fondos de cada mundo. Nombres exactos (no cambiar):
+
+  sky-w1.png ... sky-w5.png    64 x 540    cielo, se repite en X (sin parallax)
+  far-w1.png ... far-w5.png   512 x 220    capa lejana con parallax (scroll 0.25)
+
+Reglas:
+- sky-*: degradado vertical. Debe poder repetirse en horizontal sin costura.
+- far-*: PNG con transparencia (montanas, dunas, edificios...). Se ancla abajo
+  y se repite en horizontal, asi que el borde izquierdo y el derecho deben calzar.
+- La resolucion logica del juego es 960 x 540.

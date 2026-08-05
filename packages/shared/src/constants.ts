@@ -19,10 +19,12 @@ export const PHYSICS = {
   gravityY: 1800,
   runSpeed: 230,
   sprintSpeed: 340,
+  capeSprintSpeed: 405,
   acceleration: 1800,
   friction: 1500,
   airFriction: 400,
   jumpVelocity: -620,
+  momentumJumpBoost: 155,
   jumpHoldBoost: -900,
   maxJumpHoldMs: 190,
   maxFallSpeed: 900,
@@ -30,11 +32,20 @@ export const PHYSICS = {
   jumpBufferMs: 130,
   enemyStompBounce: -420,
   invulnerabilityMs: 1400,
+  capeMinTakeoffSpeed: 210,
+  capeFlightLift: 820,
+  capeGravityReduction: 1350,
+  capeGlideGravityReduction: 880,
+  capeFlightDrainPerSecond: 19,
+  capeChargePerSecond: 44,
 } as const;
 
 /** Puntajes */
 export const SCORE = {
   coin: 100,
+  silverCoin: 100,
+  goldCoin: 500,
+  commemorativeNote: 1000,
   gem: 500,
   enemyStomp: 200,
   enemyCombo: 100,
@@ -174,5 +185,5 @@ export function nextLevel(world: number, level: number): { world: number; level:
 }
 
 /** Power-ups disponibles. */
-export const POWER_UPS = ['none', 'grande', 'fuego', 'estrella'] as const;
+export const POWER_UPS = ['none', 'grande', 'fuego', 'hielo', 'capa', 'estrella'] as const;
 export type PowerUp = (typeof POWER_UPS)[number];

@@ -22,6 +22,8 @@ export const TILE = {
   QUESTION: '?', // bloque sorpresa -> moneda
   POWER: 'M', // bloque sorpresa -> power-up
   COIN: 'o',
+  GOLD_COIN: 'd',
+  BANKNOTE: 'n',
   GEM: 'G',
   SPIKE: '^',
   LAVA: '~',
@@ -36,6 +38,7 @@ export const TILE = {
   ENEMY_FLYER: 'F',
   ENEMY_SLIDER: 'L',
   ENEMY_GHOST: 'H',
+  GRAPPLE: 'A',
   BOSS: '@',
 } as const;
 
@@ -126,7 +129,7 @@ export const LEVELS: readonly LevelDesign[] = WORLD_IDS.flatMap((world) =>
       gapChance: isBoss ? 0 : 0.18 + difficulty * 0.3,
       maxGap: isBoss ? 0 : Math.min(4, 2 + Math.floor(difficulty * 3)),
       platformDensity: 0.25 + difficulty * 0.4,
-      enemyDensity: isBoss ? 0.25 : 0.18 + difficulty * 0.35,
+      enemyDensity: isBoss ? 0.35 : 0.28 + difficulty * 0.42,
       hazardDensity: isBoss ? 0.15 : difficulty * 0.35,
       enemies: WORLD_ENEMIES[world] ?? ['goomb'],
       timeLimit: isBoss ? 240 : Math.round(300 - difficulty * 80),
@@ -287,6 +290,28 @@ export function generateLevel(design: LevelDesign): GeneratedLevel {
     c += len + 2;
   }
 
+  // Cada nivel ofrece pronto un bloque de arma accesible. Tito empieza con
+  // roca y aqui puede sustituirla por fuego o hielo.
+  const earlyPowerEnd = Math.min(width - SAFE_END, SAFE_START + 18);
+  const hasAccessibleEarlyPower = Array.from(
+    { length: Math.max(0, earlyPowerEnd - SAFE_START) },
+    (_, index) => SAFE_START + index,
+  ).some((c) => {
+    const s = surface[c]!;
+    return s > 2 && grid[s - 3]![c] === TILE.POWER;
+  });
+  if (!hasAccessibleEarlyPower) {
+    for (let c = SAFE_START; c < earlyPowerEnd; c++) {
+      const s = surface[c]!;
+      if (s < 0) continue;
+      const row = s - 3;
+      if (row > 2 && grid[row]![c] === TILE.EMPTY && grid[row + 1]![c] === TILE.EMPTY) {
+        grid[row]![c] = TILE.POWER;
+        break;
+      }
+    }
+  }
+
   // Monedas en arco sobre los abismos (recompensa por saltar bien)
   for (let c = 1; c < width - 1; c++) {
     if (surface[c]! >= 0 || surface[c - 1]! < 0) continue;
@@ -347,7 +372,7 @@ export function generateLevel(design: LevelDesign): GeneratedLevel {
     const s = surface[c]!;
     if (s < 0) continue;
     if (grid[s - 1]![c] !== TILE.EMPTY) continue;
-    if (rng() > design.enemyDensity * 0.45) continue;
+    if (rng() > design.enemyDensity * 0.7) continue;
 
     const kind = enemyPool[Math.floor(rng() * enemyPool.length)]!;
     if (kind === 'flyer' || kind === 'ghost') {
@@ -356,7 +381,19 @@ export function generateLevel(design: LevelDesign): GeneratedLevel {
     } else {
       grid[s - 1]![c] = enemyChar[kind];
     }
-    c += 4;
+    c += 3;
+  }
+
+  // Puntos de agarre para el lazo. Siempre aparecen sobre zonas transitables
+  // y se dejan separados para que cada salto tenga una lectura clara.
+  const grappleSpacing = design.world === 1 ? 22 : 17;
+  for (let c = SAFE_START + 9; c < width - SAFE_END; c += grappleSpacing) {
+    let anchorCol = c;
+    while (anchorCol < Math.min(c + 6, width - SAFE_END) && surface[anchorCol]! < 0) anchorCol++;
+    const s = surface[anchorCol]!;
+    if (s < 0) continue;
+    const row = Math.max(3, s - 7 - Math.floor(rng() * 2));
+    if (grid[row]![anchorCol] === TILE.EMPTY) grid[row]![anchorCol] = TILE.GRAPPLE;
   }
 
   // Gemas escondidas (3 por nivel). Busca la columna mas cercana con hueco.
@@ -389,6 +426,26 @@ export function generateLevel(design: LevelDesign): GeneratedLevel {
     if (s < 0) continue;
     const row = s - 3 - (c % 3);
     if (row > 2 && grid[row]![c] === TILE.EMPTY) grid[row]![c] = TILE.COIN;
+  }
+
+  // Convierte parte del tesoro en piezas raras. Se hace al final para no
+  // afectar la garantia de monedas ni la ruta jugable del nivel.
+  for (let c = SAFE_START; c < width - SAFE_END; c++) {
+    for (let r = 2; r < height - 2; r++) {
+      if (grid[r]![c] !== TILE.COIN) continue;
+      const roll = rng();
+      if (roll < 0.035) grid[r]![c] = TILE.BANKNOTE;
+      else if (roll < 0.15) grid[r]![c] = TILE.GOLD_COIN;
+    }
+  }
+  if (!grid.some((row) => row.includes(TILE.GOLD_COIN))) {
+    outer: for (let c = Math.floor(width * 0.4); c < width - SAFE_END; c++) {
+      for (let r = 2; r < height - 2; r++) {
+        if (grid[r]![c] !== TILE.COIN) continue;
+        grid[r]![c] = TILE.GOLD_COIN;
+        break outer;
+      }
+    }
   }
 
   // Spawn

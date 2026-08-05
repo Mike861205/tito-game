@@ -63,23 +63,56 @@ export function createTileset(scene: Phaser.Scene, world: WorldMeta): string {
 
   const at = (i: number): number => i * s;
 
-  // 0: SOLID (tierra con capa superior)
-  ctx.fillStyle = hex(world.ground);
-  ctx.fillRect(at(0), 0, s, s);
+  // 0: roca organica. Las curvas y vetas evitan el aspecto de bloques lisos.
+  const rock = ctx.createLinearGradient(at(0), 0, at(0) + s, s);
+  rock.addColorStop(0, shade(world.ground, 24));
+  rock.addColorStop(0.55, hex(world.ground));
+  rock.addColorStop(1, shade(world.ground, -32));
+  ctx.fillStyle = rock;
+  ctx.beginPath();
+  ctx.moveTo(at(0), 5);
+  ctx.quadraticCurveTo(at(0) + 7, 0, at(0) + 14, 3);
+  ctx.quadraticCurveTo(at(0) + 23, 7, at(0) + s, 2);
+  ctx.lineTo(at(0) + s, s);
+  ctx.lineTo(at(0), s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = shade(world.ground, -38);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(at(0) + 4, 13);
+  ctx.quadraticCurveTo(at(0) + 13, 9, at(0) + 19, 18);
+  ctx.quadraticCurveTo(at(0) + 23, 24, at(0) + 30, 21);
+  ctx.moveTo(at(0) + 8, 29);
+  ctx.quadraticCurveTo(at(0) + 15, 22, at(0) + 22, 30);
+  ctx.stroke();
   ctx.fillStyle = hex(world.groundTop);
-  ctx.fillRect(at(0), 0, s, 8);
-  ctx.fillStyle = shade(world.ground, -25);
-  for (let i = 0; i < 6; i++) {
-    ctx.fillRect(at(0) + ((i * 11) % (s - 4)), 12 + ((i * 7) % 16), 3, 3);
-  }
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.strokeRect(at(0) + 0.5, 0.5, s - 1, s - 1);
+  ctx.beginPath();
+  ctx.moveTo(at(0), 6);
+  ctx.quadraticCurveTo(at(0) + 8, 1, at(0) + 16, 5);
+  ctx.quadraticCurveTo(at(0) + 25, 9, at(0) + s, 3);
+  ctx.lineTo(at(0) + s, 9);
+  ctx.quadraticCurveTo(at(0) + 22, 13, at(0), 10);
+  ctx.closePath();
+  ctx.fill();
 
   // 1: PLATFORM (one-way)
-  ctx.fillStyle = hex(world.groundTop);
-  ctx.fillRect(at(1), 0, s, 10);
-  ctx.fillStyle = shade(world.ground, -10);
-  ctx.fillRect(at(1), 10, s, 4);
+  ctx.fillStyle = shade(world.ground, 12);
+  ctx.beginPath();
+  ctx.moveTo(at(1), 5);
+  ctx.quadraticCurveTo(at(1) + 8, 0, at(1) + 16, 4);
+  ctx.quadraticCurveTo(at(1) + 25, 8, at(1) + s, 2);
+  ctx.lineTo(at(1) + s - 4, 15);
+  ctx.quadraticCurveTo(at(1) + 15, 20, at(1) + 3, 14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = hex(world.groundTop);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(at(1), 5);
+  ctx.quadraticCurveTo(at(1) + 9, 0, at(1) + 17, 4);
+  ctx.quadraticCurveTo(at(1) + 25, 8, at(1) + s, 2);
+  ctx.stroke();
 
   // 2: BRICK
   ctx.fillStyle = shade(world.ground, 20);
@@ -383,31 +416,92 @@ export function createPropTextures(scene: Phaser.Scene): void {
     c.fillRect(2, 0, 28, 5);
   });
 
-  make('checkpoint', 24, 56, (c) => {
-    c.fillStyle = '#607d8b';
-    c.fillRect(9, 6, 5, 50);
-    c.fillStyle = '#26a69a';
+  make('checkpoint', 44, 72, (c) => {
+    const aura = c.createRadialGradient(22, 24, 2, 22, 24, 22);
+    aura.addColorStop(0, 'rgba(126,231,255,0.42)');
+    aura.addColorStop(1, 'rgba(126,231,255,0)');
+    c.fillStyle = aura;
+    c.fillRect(0, 0, 44, 48);
+
+    const pole = c.createLinearGradient(16, 0, 25, 0);
+    pole.addColorStop(0, '#40546f');
+    pole.addColorStop(0.45, '#f0fbff');
+    pole.addColorStop(1, '#536b8e');
+    c.fillStyle = pole;
+    c.fillRect(19, 9, 6, 57);
+    c.fillStyle = '#18243a';
+    c.fillRect(17, 65, 10, 4);
+    c.fillStyle = '#8be9ff';
     c.beginPath();
-    c.moveTo(14, 8);
-    c.lineTo(24, 14);
-    c.lineTo(14, 20);
+    c.arc(22, 8, 6, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#ffffff';
+    c.lineWidth = 2;
+    c.stroke();
+
+    const fabric = c.createLinearGradient(23, 13, 43, 36);
+    fabric.addColorStop(0, '#8b5cf6');
+    fabric.addColorStop(0.55, '#20c7df');
+    fabric.addColorStop(1, '#087fbd');
+    c.fillStyle = fabric;
+    c.beginPath();
+    c.moveTo(24, 14);
+    c.quadraticCurveTo(34, 10, 43, 17);
+    c.lineTo(39, 36);
+    c.quadraticCurveTo(32, 30, 24, 34);
     c.closePath();
     c.fill();
+    c.strokeStyle = '#baf6ff';
+    c.lineWidth = 1.5;
+    c.stroke();
+    c.fillStyle = '#fff4a8';
+    c.font = 'bold 13px Arial';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('★', 33, 23);
   });
 
-  make('goal-flag', 32, 96, (c) => {
-    c.fillStyle = '#cfd8dc';
-    c.fillRect(13, 0, 6, 96);
-    c.fillStyle = '#ffd54f';
+  make('goal-flag', 54, 104, (c) => {
+    const glow = c.createRadialGradient(23, 19, 2, 23, 19, 24);
+    glow.addColorStop(0, 'rgba(255,223,92,0.5)');
+    glow.addColorStop(1, 'rgba(255,173,30,0)');
+    c.fillStyle = glow;
+    c.fillRect(0, 0, 54, 48);
+    const pole = c.createLinearGradient(17, 0, 28, 0);
+    pole.addColorStop(0, '#4c566d');
+    pole.addColorStop(0.5, '#ffffff');
+    pole.addColorStop(1, '#5f6f8d');
+    c.fillStyle = pole;
+    c.fillRect(20, 8, 7, 91);
+    c.fillStyle = '#ffd75e';
     c.beginPath();
-    c.arc(16, 4, 7, 0, Math.PI * 2);
+    c.arc(23.5, 7, 7, 0, Math.PI * 2);
     c.fill();
-    c.fillStyle = '#e53935';
+    c.strokeStyle = '#fff6ba';
+    c.lineWidth = 2;
+    c.stroke();
+    const flag = c.createLinearGradient(26, 14, 53, 45);
+    flag.addColorStop(0, '#ffcf45');
+    flag.addColorStop(0.5, '#ff7043');
+    flag.addColorStop(1, '#d52b58');
+    c.fillStyle = flag;
     c.beginPath();
-    c.moveTo(19, 12);
-    c.lineTo(32, 22);
-    c.lineTo(19, 32);
+    c.moveTo(27, 14);
+    c.quadraticCurveTo(41, 9, 53, 18);
+    c.lineTo(49, 45);
+    c.quadraticCurveTo(39, 37, 27, 43);
     c.closePath();
+    c.fill();
+    c.strokeStyle = '#fff0a0';
+    c.stroke();
+    c.fillStyle = '#ffffff';
+    c.font = 'bold 17px Arial';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('T', 39, 27);
+    c.fillStyle = '#24314a';
+    c.beginPath();
+    c.roundRect(14, 97, 19, 6, 3);
     c.fill();
   });
 
@@ -446,6 +540,182 @@ export function createPropTextures(scene: Phaser.Scene): void {
     c.fillStyle = '#ffe082';
     c.beginPath();
     c.arc(13, 15, 5, 0, Math.PI * 2);
+    c.fill();
+  });
+
+  make('coin-gold', 28, 28, (c) => {
+    c.fillStyle = '#ffc107';
+    c.beginPath();
+    c.arc(14, 14, 12, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#fff3b0';
+    c.lineWidth = 2;
+    c.stroke();
+    c.fillStyle = '#8d5b00';
+    c.font = 'bold 15px sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('*', 14, 15);
+  });
+
+  make('banknote-tito', 46, 26, (c) => {
+    c.fillStyle = '#26c6da';
+    c.beginPath();
+    c.roundRect(1, 2, 44, 22, 4);
+    c.fill();
+    c.strokeStyle = '#ffd54f';
+    c.lineWidth = 2;
+    c.stroke();
+    c.fillStyle = '#6a1b9a';
+    c.beginPath();
+    c.arc(23, 13, 7, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.font = 'bold 11px sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('T', 23, 13);
+  });
+
+  make('enemy-fire', 18, 18, (c) => {
+    const g = c.createRadialGradient(8, 10, 1, 9, 9, 9);
+    g.addColorStop(0, '#fff59d');
+    g.addColorStop(0.45, '#ff9800');
+    g.addColorStop(1, '#d84315');
+    c.fillStyle = g;
+    c.beginPath();
+    c.moveTo(1, 11);
+    c.quadraticCurveTo(5, 3, 10, 1);
+    c.quadraticCurveTo(18, 7, 15, 15);
+    c.quadraticCurveTo(7, 20, 1, 11);
+    c.fill();
+  });
+
+  make('enemy-bubble', 18, 18, (c) => {
+    c.fillStyle = 'rgba(41,182,246,0.82)';
+    c.beginPath();
+    c.arc(9, 9, 8, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#e1f5fe';
+    c.lineWidth = 2;
+    c.stroke();
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(6, 5, 2, 0, Math.PI * 2);
+    c.fill();
+  });
+
+  make('enemy-egg', 26, 32, (c) => {
+    c.fillStyle = '#fff8e1';
+    c.beginPath();
+    c.ellipse(13, 17, 10, 14, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#8d6e63';
+    c.lineWidth = 2;
+    c.stroke();
+    c.fillStyle = '#7e57c2';
+    c.beginPath();
+    c.arc(10, 13, 3, 0, Math.PI * 2);
+    c.arc(17, 20, 2.5, 0, Math.PI * 2);
+    c.fill();
+  });
+
+  make('powerup-hielo', 26, 26, (c) => {
+    c.fillStyle = '#29b6f6';
+    c.beginPath();
+    c.arc(13, 13, 11, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#e1f5fe';
+    c.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI;
+      c.beginPath();
+      c.moveTo(13 + Math.cos(a) * 8, 13 + Math.sin(a) * 8);
+      c.lineTo(13 - Math.cos(a) * 8, 13 - Math.sin(a) * 8);
+      c.stroke();
+    }
+  });
+
+  make('powerup-capa', 30, 28, (c) => {
+    const glow = c.createRadialGradient(15, 14, 2, 15, 14, 14);
+    glow.addColorStop(0, '#fff7b2');
+    glow.addColorStop(0.55, '#ffb83e');
+    glow.addColorStop(1, 'rgba(255,92,35,0.15)');
+    c.fillStyle = glow;
+    c.beginPath();
+    c.arc(15, 14, 14, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#f4512c';
+    c.strokeStyle = '#7a1b20';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(9, 5);
+    c.quadraticCurveTo(19, 8, 25, 4);
+    c.quadraticCurveTo(23, 17, 15, 25);
+    c.quadraticCurveTo(10, 18, 6, 9);
+    c.closePath();
+    c.fill();
+    c.stroke();
+    c.fillStyle = '#ffd54f';
+    c.beginPath();
+    c.moveTo(11, 7);
+    c.lineTo(19, 9);
+    c.lineTo(15, 19);
+    c.closePath();
+    c.fill();
+  });
+
+  make('projectile-fire', 18, 18, (c) => {
+    const g = c.createRadialGradient(9, 10, 1, 9, 9, 9);
+    g.addColorStop(0, '#fff59d');
+    g.addColorStop(0.45, '#ff9800');
+    g.addColorStop(1, '#d84315');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(9, 9, 8, 0, Math.PI * 2);
+    c.fill();
+  });
+
+  make('projectile-ice', 18, 18, (c) => {
+    c.fillStyle = '#81d4fa';
+    c.strokeStyle = '#e1f5fe';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(9, 0);
+    c.lineTo(17, 7);
+    c.lineTo(12, 18);
+    c.lineTo(2, 13);
+    c.lineTo(1, 5);
+    c.closePath();
+    c.fill();
+    c.stroke();
+  });
+
+  make('throw-rock', 20, 18, (c) => {
+    c.fillStyle = '#795548';
+    c.strokeStyle = '#3e2723';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(2, 7);
+    c.lineTo(7, 1);
+    c.lineTo(16, 3);
+    c.lineTo(19, 11);
+    c.lineTo(13, 17);
+    c.lineTo(4, 15);
+    c.closePath();
+    c.fill();
+    c.stroke();
+  });
+
+  make('grapple-anchor', 24, 24, (c) => {
+    c.strokeStyle = '#ffe082';
+    c.lineWidth = 4;
+    c.beginPath();
+    c.arc(12, 12, 8, 0, Math.PI * 2);
+    c.stroke();
+    c.fillStyle = '#fff8e1';
+    c.beginPath();
+    c.arc(12, 12, 3, 0, Math.PI * 2);
     c.fill();
   });
 

@@ -95,6 +95,9 @@ Abre <http://localhost:5173>.
 | Saltar (mantener = mas alto) | Espacio / Arriba / W | A | Boton `A` |
 | Agacharse | Abajo / S | D-pad abajo | Boton `v` |
 | Correr | Shift | X | - |
+| Disparar arma equipada (roca al iniciar) | E / R | B / RB | - |
+| Enganchar y mantener el lazo volador | Q | Y | - |
+| Subir / bajar mientras usa el lazo | Espacio / Abajo | A / D-pad abajo | `A` / `v` |
 | Pausa | ESC / P | - | - |
 
 ---
@@ -109,7 +112,15 @@ Abre <http://localhost:5173>.
 | 4 | Fabrica de Tuercas | Precision, plataformas verticales | Mecha-Tuerca |
 | 5 | Castillo de Lava | Lava en los abismos, fantasmas | Lord Magma |
 
-Los niveles se generan de forma **determinista** con una semilla, asi que son
+Los niveles incluyen puntos dorados para volar y levitar con el lazo. Tito
+empieza disparando rocas; cada nivel garantiza pronto un bloque de premio que
+cambia el arma por fuego o hielo. Tambien hay fondos panoramicos propios de
+cada mundo.
+Los dragones, anguilas y avatares disparan; dragones y anguilas dejan huevos
+que incuban mini-enemigos (maximo 12 por nivel y 4 huevos simultaneos).
+El tesoro usa plata (1), centenarios dorados ficticios (5) y billetes
+conmemorativos de Tito (10), todos con puntaje proporcional.
+Se generan de forma **determinista** con una semilla, asi que son
 identicos siempre y verificables desde el servidor. Una pasada de seguridad
 garantiza que ningun abismo supere la distancia de salto y ningun escalon
 supere los 3 tiles de altura: **siempre se pueden pasar**.

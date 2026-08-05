@@ -34,3 +34,6 @@ Thumbs.db
 # Assets fuente pesados (opcional)
 assets-src/**/*.psd
 assets-src/**/*.aseprite.bak
+
+# Recortes temporales de depuracion del sprite de Tito
+.tito-crops/

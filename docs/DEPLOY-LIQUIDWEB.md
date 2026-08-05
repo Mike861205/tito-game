@@ -37,7 +37,7 @@ cd /var/www/tito
 git clone TU_REPO_GIT .
 
 npm ci
-cp .env.example .env
+cp .env.production.example .env
 nano .env      # valores de PRODUCCION
 ```
 
@@ -53,7 +53,7 @@ JWT_SECRET=<48 bytes aleatorios>
 SCORE_HMAC_SECRET=<48 bytes aleatorios>
 
 DATABASE_URL=<Neon branch production, pooled>
-DIRECT_URL=<Neon branch production, direct>
+DIRECT_URL=<Neon branch production, direct, sin -pooler>
 
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini

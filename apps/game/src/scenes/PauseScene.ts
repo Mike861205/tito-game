@@ -21,10 +21,20 @@ export class PauseScene extends Phaser.Scene {
     createTitle(this, width / 2, height / 2 - 140, 'PAUSA', 36);
 
     this.add
-      .text(width / 2, height / 2 - 96, `Nivel ${this.levelInfo.world}-${this.levelInfo.level}`, {
+      .text(width / 2, height / 2 - 104, `Nivel ${this.levelInfo.world}-${this.levelInfo.level}`, {
         fontSize: '16px',
         color: '#c9d1d9',
       })
+      .setOrigin(0.5);
+
+    const savedFlag = save.getCheckpoint(this.levelInfo.world, this.levelInfo.level);
+    this.add
+      .text(
+        width / 2,
+        height / 2 - 80,
+        savedFlag === null ? 'Aún no hay una bandera guardada' : `Bandera ${savedFlag + 1} guardada`,
+        { fontSize: '13px', color: savedFlag === null ? '#8b949e' : '#78f3ff', fontStyle: 'bold' },
+      )
       .setOrigin(0.5);
 
     createButton(this, width / 2, height / 2 - 44, 'CONTINUAR', () => this.resume(), { width: 300 });
@@ -59,8 +69,10 @@ export class PauseScene extends Phaser.Scene {
       this,
       width / 2,
       height / 2 + 140,
-      'SALIR AL MAPA',
+      'SALIR Y GUARDAR',
       () => {
+        save.save();
+        this.scene.get('Game').events.emit('game:exit');
         this.scene.stop('Hud');
         this.scene.stop('Game');
         this.scene.stop();

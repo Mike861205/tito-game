@@ -8,6 +8,10 @@ export interface InputState {
   jumpJustPressed: boolean;
   sprint: boolean;
   action: boolean;
+  actionJustPressed: boolean;
+  ropeDown: boolean;
+  ropeJustPressed: boolean;
+  rockJustPressed: boolean;
 }
 
 /**
@@ -23,6 +27,10 @@ export class InputController {
     down: false,
   };
   private prevJump = false;
+  private prevAction = false;
+  private prevRope = false;
+  private prevRock = false;
+  private pauseCallbacks: Array<() => void> = [];
   private touchContainer?: Phaser.GameObjects.Container;
 
   constructor(scene: Phaser.Scene) {
@@ -30,7 +38,7 @@ export class InputController {
     const kb = scene.input.keyboard;
     if (kb) {
       this.keys = kb.addKeys(
-        'LEFT,RIGHT,UP,DOWN,A,D,W,S,SPACE,SHIFT,E,ESC,P',
+        'LEFT,RIGHT,UP,DOWN,A,D,W,S,SPACE,SHIFT,E,Q,R,ESC,P',
       ) as Record<string, Phaser.Input.Keyboard.Key>;
     }
     if (scene.sys.game.device.input.touch) this.createTouchControls();
@@ -86,21 +94,49 @@ export class InputController {
       Boolean(k.W?.isDown) ||
       this.touch.jump ||
       Boolean(pad?.A);
-    const sprint = Boolean(k.SHIFT?.isDown) || Boolean(pad?.X);
+    // En touch no hay una tecla SHIFT separada: mantener una direccion activa
+    // la carrera para que tambien se pueda cargar la capa en celular/tablet.
+    const sprint = Boolean(k.SHIFT?.isDown) || Boolean(pad?.X) || this.touch.left || this.touch.right;
     const action = Boolean(k.E?.isDown) || Boolean(pad?.B);
+    const ropeDown = Boolean(k.Q?.isDown) || Boolean(pad?.Y);
+    const rockDown = Boolean(k.R?.isDown) || Boolean(pad?.buttons[5]?.pressed);
 
     const jumpJustPressed = jumpDown && !this.prevJump;
+    const actionJustPressed = action && !this.prevAction;
+    const ropeJustPressed = ropeDown && !this.prevRope;
+    const rockJustPressed = rockDown && !this.prevRock;
     this.prevJump = jumpDown;
+    this.prevAction = action;
+    this.prevRope = ropeDown;
+    this.prevRock = rockDown;
 
-    return { left, right, down, jumpDown, jumpJustPressed, sprint, action };
+    return {
+      left,
+      right,
+      down,
+      jumpDown,
+      jumpJustPressed,
+      sprint,
+      action,
+      actionJustPressed,
+      ropeDown,
+      ropeJustPressed,
+      rockJustPressed,
+    };
   }
 
   onPause(callback: () => void): void {
     this.scene.input.keyboard?.on('keydown-ESC', callback);
     this.scene.input.keyboard?.on('keydown-P', callback);
+    this.pauseCallbacks.push(callback);
   }
 
   destroy(): void {
+    for (const callback of this.pauseCallbacks) {
+      this.scene.input.keyboard?.off('keydown-ESC', callback);
+      this.scene.input.keyboard?.off('keydown-P', callback);
+    }
+    this.pauseCallbacks = [];
     this.touchContainer?.destroy(true);
   }
 }
