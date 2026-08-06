@@ -87,6 +87,67 @@ export class InputController {
       });
     });
 
+    const joystick = document.getElementById('touch-joystick');
+    const knob = document.getElementById('touch-joystick-knob');
+    let joystickPointer: number | null = null;
+    const resetJoystick = (): void => {
+      joystickPointer = null;
+      this.touch.left = false;
+      this.touch.right = false;
+      this.touch.down = false;
+      joystick?.classList.remove('active');
+      if (knob) knob.style.transform = 'translate(-50%, -50%)';
+    };
+    const moveJoystick = (event: PointerEvent): void => {
+      if (!joystick || !knob || event.pointerId !== joystickPointer) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = joystick.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const rawX = event.clientX - centerX;
+      const rawY = event.clientY - centerY;
+      const radius = Math.max(1, rect.width * 0.29);
+      const distance = Math.hypot(rawX, rawY);
+      const scale = distance > radius ? radius / distance : 1;
+      const x = rawX * scale;
+      const y = rawY * scale;
+      const normalizedX = rawX / (rect.width / 2);
+      const normalizedY = rawY / (rect.height / 2);
+      knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+      this.touch.left = normalizedX < -0.22;
+      this.touch.right = normalizedX > 0.22;
+      this.touch.down = normalizedY > 0.55 && Math.abs(normalizedY) > Math.abs(normalizedX) * 1.2;
+    };
+    const startJoystick = (event: PointerEvent): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      joystickPointer = event.pointerId;
+      joystick?.setPointerCapture?.(event.pointerId);
+      joystick?.classList.add('active');
+      navigator.vibrate?.(8);
+      moveJoystick(event);
+    };
+    const stopJoystick = (event: PointerEvent): void => {
+      if (event.pointerId !== joystickPointer) return;
+      event.preventDefault();
+      event.stopPropagation();
+      resetJoystick();
+    };
+    joystick?.addEventListener('pointerdown', startJoystick);
+    joystick?.addEventListener('pointermove', moveJoystick);
+    joystick?.addEventListener('pointerup', stopJoystick);
+    joystick?.addEventListener('pointercancel', stopJoystick);
+    joystick?.addEventListener('lostpointercapture', stopJoystick);
+    this.domCleanup.push(() => {
+      joystick?.removeEventListener('pointerdown', startJoystick);
+      joystick?.removeEventListener('pointermove', moveJoystick);
+      joystick?.removeEventListener('pointerup', stopJoystick);
+      joystick?.removeEventListener('pointercancel', stopJoystick);
+      joystick?.removeEventListener('lostpointercapture', stopJoystick);
+      resetJoystick();
+    });
+
     const pause = document.getElementById('mobile-pause');
     const pauseGame = (event: Event): void => {
       event.preventDefault();

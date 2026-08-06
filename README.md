@@ -91,12 +91,12 @@ Abre <http://localhost:5173>.
 
 | Accion | Teclado | Gamepad | Touch |
 |---|---|---|---|
-| Mover / correr | Flechas / A D + Shift | Stick o D-pad + X | Botones `←` `→` (carrera automatica) |
+| Mover / correr | Flechas / A D + Shift | Stick o D-pad + X | Joystick circular (carrera automatica) |
 | Saltar (mantener = mas alto) | Espacio / Arriba / W | A | Boton `A` |
-| Agacharse | Abajo / S | D-pad abajo | Boton `BAJAR` |
+| Agacharse | Abajo / S | D-pad abajo | Joystick hacia abajo |
 | Disparar arma equipada (roca al iniciar) | E / R | B / RB | Boton `DISPARO` |
 | Enganchar y mantener el lazo volador | Q | Y | Boton `LAZO` |
-| Subir / bajar mientras usa el lazo | Espacio / Abajo | A / D-pad abajo | `SALTAR / VOLAR` / `BAJAR` |
+| Subir / bajar mientras usa el lazo | Espacio / Abajo | A / D-pad abajo | `SALTAR / VOLAR` / joystick abajo |
 | Pausa y salida con guardado | ESC / P | - | Boton `II` |
 
 ---

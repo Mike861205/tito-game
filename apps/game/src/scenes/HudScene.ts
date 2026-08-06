@@ -51,14 +51,16 @@ export class HudScene extends Phaser.Scene {
     }
 
     const game = data.gameScene;
-    createButton(this, 76, this.scale.height - 24, 'SALIR / PAUSA', () => game.events.emit('game:pause-request'), {
-      width: 132,
-      height: 32,
-      fontSize: 12,
-      color: 0x3a294d,
-      hoverColor: 0x60407d,
-      radius: 12,
-    }).setDepth(1100);
+    if (!touchCapable) {
+      createButton(this, 76, this.scale.height - 24, 'SALIR / PAUSA', () => game.events.emit('game:pause-request'), {
+        width: 132,
+        height: 32,
+        fontSize: 12,
+        color: 0x3a294d,
+        hoverColor: 0x60407d,
+        radius: 12,
+      }).setDepth(1100);
+    }
     game.events.on('hud:update', (d: HudData) => this.refresh(d));
     game.events.on('hud:tip', (tip: string, taunt: string) => this.showTip(tip, taunt));
 
