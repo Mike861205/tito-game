@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { env, isProd } from '../env.js';
+import { prisma } from '../db.js';
 
 type DeployStatus = 'running' | 'success' | 'failed';
 
@@ -20,6 +21,11 @@ interface DeployJob {
 
 const loginSchema = z.object({ user: z.string().min(1).max(80), password: z.string().min(1).max(200) });
 const deploySchema = z.object({ commitMessage: z.string().trim().min(3).max(120) });
+const reportQuerySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(150),
+});
 const repoRoot = resolve(process.cwd(), '../..');
 const stateFile = resolve(repoRoot, '.deploy-state.json');
 
@@ -122,6 +128,64 @@ export async function superadminRoutes(app: FastifyInstance): Promise<void> {
     ok: true,
     data: { job: readJob() ?? null },
   }));
+
+  app.get('/api/superadmin/players', { onRequest: [requireLocalAdmin] }, async (req, reply) => {
+    const parsed = reportQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply.code(400).send({ ok: false, error: { code: 'VALIDATION', message: 'Rango de fechas inválido' } });
+    }
+    const from = parsed.data.from ? new Date(parsed.data.from) : new Date(0);
+    const to = parsed.data.to ? new Date(parsed.data.to) : new Date();
+    const activityRange = { gte: from, lte: to };
+    const players = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: parsed.data.limit,
+      select: {
+        id: true, username: true, displayName: true, phone: true, avatar: true,
+        createdAt: true, lastLoginAt: true, loginCount: true,
+        progress: { select: { totalScore: true, coins: true } },
+        runs: { where: { startedAt: activityRange }, select: { startedAt: true } },
+        scores: { where: { createdAt: activityRange }, select: { timeMs: true, completed: true, score: true, createdAt: true } },
+      },
+    });
+    const totalPlayers = await prisma.user.count();
+    const newPlayers = await prisma.user.count({ where: { createdAt: activityRange } });
+    const rows = players.map((player) => {
+      const minutesPlayed = player.scores.reduce((total, score) => total + score.timeMs, 0) / 60000;
+      const lastRun = player.runs.reduce<Date | null>((latest, run) => !latest || run.startedAt > latest ? run.startedAt : latest, null);
+      const lastScore = player.scores.reduce<Date | null>((latest, score) => !latest || score.createdAt > latest ? score.createdAt : latest, null);
+      const lastActivity = [player.lastLoginAt, lastRun, lastScore].filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+      return {
+        id: player.id,
+        name: player.displayName ?? player.username,
+        username: player.username,
+        phone: player.phone,
+        avatar: player.avatar,
+        registeredAt: player.createdAt.toISOString(),
+        lastLoginAt: player.lastLoginAt?.toISOString() ?? null,
+        lastActivityAt: lastActivity?.toISOString() ?? null,
+        logins: player.loginCount,
+        games: player.runs.length,
+        completedGames: player.scores.filter((score) => score.completed).length,
+        minutesPlayed: Math.round(minutesPlayed * 10) / 10,
+        score: player.progress?.totalScore ?? player.scores.reduce((total, score) => total + score.score, 0),
+        coins: player.progress?.coins ?? 0,
+      };
+    });
+    return {
+      ok: true,
+      data: {
+        summary: {
+          totalPlayers,
+          newPlayers,
+          totalLogins: rows.reduce((total, player) => total + player.logins, 0),
+          totalGames: rows.reduce((total, player) => total + player.games, 0),
+          totalMinutes: Math.round(rows.reduce((total, player) => total + player.minutesPlayed, 0) * 10) / 10,
+        },
+        players: rows,
+      },
+    };
+  });
 
   app.post('/api/superadmin/deploy', { onRequest: [requireLocalAdmin] }, async (req, reply) => {
     const parsed = deploySchema.safeParse(req.body);

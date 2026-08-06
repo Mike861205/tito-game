@@ -2,6 +2,16 @@ import type { AiCoachInput, AiCoachResponse, Progress } from '@tito/shared';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 const TOKEN_KEY = 'tito.auth.token';
+const PROFILE_KEY = 'tito.player.profile';
+
+function readStoredProfile(): PlayerProfile | null {
+  try {
+    return JSON.parse(localStorage.getItem(PROFILE_KEY) ?? 'null') as PlayerProfile | null;
+  } catch {
+    localStorage.removeItem(PROFILE_KEY);
+    return null;
+  }
+}
 
 export interface LeaderboardRow {
   rank: number;
@@ -32,13 +42,27 @@ export interface ScoreResult {
   completed: boolean;
 }
 
+export interface PlayerProfile {
+  id: string;
+  username: string;
+  name: string | null;
+  phone: string | null;
+  avatar: string;
+}
+
 class ApiClient {
   private token: string | null = localStorage.getItem(TOKEN_KEY);
+  private profile: PlayerProfile | null = readStoredProfile();
+  lastError = '';
   /** Si la API no responde, el juego sigue funcionando en modo offline. */
   online = false;
 
   get isAuthenticated(): boolean {
     return Boolean(this.token);
+  }
+
+  get currentPlayer(): PlayerProfile | null {
+    return this.profile;
   }
 
   setToken(token: string | null): void {
@@ -48,6 +72,7 @@ class ApiClient {
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T | null> {
+    this.lastError = '';
     try {
       const res = await fetch(`${API_URL}${path}`, {
         ...init,
@@ -60,6 +85,7 @@ class ApiClient {
       const json = (await res.json()) as { ok: boolean; data?: T; error?: { message: string } };
       this.online = true;
       if (!json.ok) {
+        this.lastError = json.error?.message ?? 'No se pudo completar la solicitud';
         console.warn(`[API] ${path}:`, json.error?.message);
         if (res.status === 401) this.setToken(null);
         return null;
@@ -67,6 +93,7 @@ class ApiClient {
       return json.data ?? null;
     } catch {
       this.online = false;
+      this.lastError = 'No hay conexión con el servidor';
       return null;
     }
   }
@@ -94,8 +121,23 @@ class ApiClient {
     return data;
   }
 
+  async quickLogin(name: string, phone: string, avatar: string) {
+    const data = await this.request<{ token: string; user: PlayerProfile }>('/api/auth/quick', {
+      method: 'POST',
+      body: JSON.stringify({ name, phone, avatar }),
+    });
+    if (data?.token) {
+      this.setToken(data.token);
+      this.profile = data.user;
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(data.user));
+    }
+    return data;
+  }
+
   logout(): void {
     this.setToken(null);
+    this.profile = null;
+    localStorage.removeItem(PROFILE_KEY);
   }
 
   async getProgress(): Promise<Progress | null> {

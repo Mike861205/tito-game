@@ -4,6 +4,7 @@ import { api } from '../systems/ApiClient';
 import { audio } from '../systems/AudioManager';
 import { createButton } from '../ui/Widgets';
 import { TITO_HD_KEY } from '../systems/TitoRig';
+import { openQuickLogin } from '../ui/QuickLoginModal';
 
 export class MenuScene extends Phaser.Scene {
   private builtFor = { w: 0, h: 0 };
@@ -82,9 +83,12 @@ export class MenuScene extends Phaser.Scene {
       { ...common, color: 0x238636, hoverColor: 0x2ea043 },
     );
 
+    const avatarIcons: Record<string, string> = { explorer: '🧢', fox: '🦊', dragon: '🐲', robot: '🤖', ice: '🧊', fire: '🔥' };
+    const player = api.currentPlayer;
+    const playerLabel = player ? `${avatarIcons[player.avatar] ?? '🎮'} ${player.name ?? player.username}` : 'Jugador conectado';
     const status = api.online
       ? api.isAuthenticated
-        ? 'Conectado - tu progreso se guarda en la nube'
+        ? `${playerLabel} - progreso guardado en la nube`
         : 'Servidor listo - juega como invitado o inicia sesion'
       : 'Modo offline - tu progreso se guarda en este navegador';
     this.addStatusPill(cx, statusY, status, smallFont, api.online ? 0x2ea043 : 0x8b949e);
@@ -235,36 +239,19 @@ export class MenuScene extends Phaser.Scene {
     });
   }
 
-  /** Login minimalista con prompts nativos (suficiente para la version local). */
+  /** Acceso rápido con perfil; el invitado conserva el guardado local. */
   private async promptLogin(): Promise<void> {
     audio.play('select');
-    const mode = window.confirm('Aceptar = Iniciar sesion\nCancelar = Crear cuenta nueva');
-
-    if (mode) {
-      const user = window.prompt('Usuario o email:');
-      if (!user) return;
-      const pass = window.prompt('Contrasena:');
-      if (!pass) return;
-      const res = await api.login(user, pass);
-      if (!res) {
-        window.alert('No se pudo iniciar sesion. Revisa tus datos o el servidor.');
-        return;
-      }
-    } else {
-      const email = window.prompt('Email:');
-      if (!email) return;
-      const username = window.prompt('Nombre de jugador (3-20, sin espacios):');
-      if (!username) return;
-      const pass = window.prompt('Contrasena (min 8 caracteres):');
-      if (!pass) return;
-      const res = await api.register(email, username, pass);
-      if (!res) {
-        window.alert('No se pudo crear la cuenta. Puede que ya exista.');
-        return;
-      }
+    this.input.enabled = false;
+    const result = await openQuickLogin();
+    this.input.enabled = true;
+    if (result === 'guest') {
+      this.scene.start('WorldMap');
+      return;
     }
-
-    await save.syncFromServer();
-    this.scene.restart();
+    if (result === 'authenticated') {
+      await save.syncFromServer();
+      this.scene.restart();
+    }
   }
 }

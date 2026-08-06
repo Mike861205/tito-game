@@ -11,11 +11,11 @@ import {
 import { Tito, type DeathCause } from '../objects/Tito';
 import {
   Enemy,
-  enemyScore,
   isStompable,
   type EnemyAttackEvent,
   type EnemyEggEvent,
 } from '../objects/Enemy';
+import type { BossProfile } from '../objects/BossProfiles';
 import { InputController } from '../systems/InputController';
 import { buildLevel, type BuiltLevel } from '../systems/LevelBuilder';
 import { playAnim } from '../systems/AssetManifest';
@@ -73,6 +73,10 @@ export class GameScene extends Phaser.Scene {
   private nextRockAt = 0;
   private nextMovementHudAt = 0;
   private powerRewardsGiven = 0;
+  private bossEnemy?: Enemy;
+  private bossHud?: Phaser.GameObjects.Container;
+  private bossHealthFill?: Phaser.GameObjects.Rectangle;
+  private nextBossGateTipAt = 0;
 
   constructor() {
     super('Game');
@@ -97,6 +101,10 @@ export class GameScene extends Phaser.Scene {
     this.nextMovementHudAt = 0;
     this.powerRewardsGiven = 0;
     this.spawnedMinis = 0;
+    this.bossEnemy = undefined;
+    this.bossHud = undefined;
+    this.bossHealthFill = undefined;
+    this.nextBossGateTipAt = 0;
   }
 
   create(): void {
@@ -183,6 +191,10 @@ export class GameScene extends Phaser.Scene {
     this.built.enemies.getChildren().forEach((e) => {
       if (e instanceof Enemy) e.setTarget(this.tito);
     });
+    this.bossEnemy = this.built.enemies.getChildren().find(
+      (enemy): enemy is Enemy => enemy instanceof Enemy && Boolean(enemy.bossProfile),
+    );
+    if (this.bossEnemy) this.built.goal.setTint(0x637083).setAlpha(0.62);
 
     // --- Entrada ---
     this.controls = new InputController(this);
@@ -191,6 +203,13 @@ export class GameScene extends Phaser.Scene {
     // --- HUD ---
     this.scene.launch('Hud', { gameScene: this });
     this.emitHud();
+    if (this.bossEnemy?.bossProfile) {
+      this.createBossHud(this.bossEnemy);
+      this.time.delayedCall(650, () => {
+        const profile = this.bossEnemy?.bossProfile;
+        if (profile) this.events.emit('hud:tip', `${profile.name}: ${profile.title}`, 'Primero observo su patrón; luego ataco.');
+      });
+    }
 
     // --- Sonidos por evento ---
     const onJump = (): void => audio.play('jump');
@@ -202,6 +221,11 @@ export class GameScene extends Phaser.Scene {
     const onDied = (cause: DeathCause): void => this.onDeath(cause);
     const onEnemyAttack = (data: EnemyAttackEvent): void => this.spawnEnemyProjectile(data);
     const onEnemyEgg = (data: EnemyEggEvent): void => this.spawnEnemyEgg(data);
+    const onBossHealth = (boss: Enemy): void => this.refreshBossHud(boss);
+    const onBossPhase = (profile: BossProfile): void => {
+      this.cameras.main.shake(180, 0.008);
+      this.events.emit('hud:tip', `${profile.name} entró en fase de furia.`, '¡Ahora ataca más rápido!');
+    };
     const onPauseRequest = (): void => this.togglePause();
     const onExit = (): void => this.prepareExit();
     this.events.on('tito:jump', onJump);
@@ -210,6 +234,8 @@ export class GameScene extends Phaser.Scene {
     this.events.on('tito:died', onDied);
     this.events.on('enemy:attack', onEnemyAttack);
     this.events.on('enemy:egg', onEnemyEgg);
+    this.events.on('boss:health', onBossHealth);
+    this.events.on('boss:phase', onBossPhase);
     this.events.on('game:pause-request', onPauseRequest);
     this.events.on('game:exit', onExit);
 
@@ -241,6 +267,8 @@ export class GameScene extends Phaser.Scene {
       this.events.off('tito:died', onDied);
       this.events.off('enemy:attack', onEnemyAttack);
       this.events.off('enemy:egg', onEnemyEgg);
+      this.events.off('boss:health', onBossHealth);
+      this.events.off('boss:phase', onBossPhase);
       this.events.off('game:pause-request', onPauseRequest);
       this.events.off('game:exit', onExit);
       this.releaseGrapple();
@@ -273,14 +301,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemyProjectile(data: EnemyAttackEvent): void {
-    if (this.finished || this.tito.isDead || this.enemyProjectiles.countActive(true) >= 10) return;
-    const texture = data.attack === 'bubble' ? 'enemy-bubble' : 'enemy-fire';
+    if (this.finished || this.tito.isDead || this.enemyProjectiles.countActive(true) >= 18) return;
+    const bossAttack = ['thorn', 'sand', 'ice', 'shock', 'magma'].includes(data.attack);
+    const texture = bossAttack ? 'boss-orb' : data.attack === 'bubble' ? 'enemy-bubble' : 'enemy-fire';
     const shot = this.enemyProjectiles.create(data.x, data.y, texture) as Phaser.Physics.Arcade.Sprite;
     const speed = data.attack === 'bubble' ? 190 : data.attack === 'spirit' ? 230 : 280;
-    shot.setData('attack', data.attack).setVelocityX(data.direction * speed).setDepth(18);
+    shot
+      .setData('attack', data.attack)
+      .setVelocity(data.direction * (data.speed ?? speed), data.verticalSpeed ?? 0)
+      .setDepth(18)
+      .setScale(data.scale ?? 1);
+    if (data.tint) shot.setTint(data.tint);
     if (data.attack === 'spirit') shot.setTint(0x7c4dff).setScale(1.18);
     if (data.attack === 'bubble') {
       this.tweens.add({ targets: shot, y: shot.y - 22, duration: 420, yoyo: true, repeat: 2 });
+    }
+    if (bossAttack) {
+      shot.setAngularVelocity(data.direction * 220);
+      this.tweens.add({ targets: shot, scale: (data.scale ?? 1) * 1.18, duration: 180, yoyo: true, repeat: -1 });
     }
     this.time.delayedCall(3000, () => shot.active && shot.destroy());
   }
@@ -432,14 +470,20 @@ export class GameScene extends Phaser.Scene {
     shot.destroy();
     if (element === 'hielo') enemy.freeze();
     if (enemy.damage(element === 'fuego' ? 2 : 1)) this.defeatEnemy(enemy, true);
-    else this.showFloatingText(enemy.x, enemy.y - 24, element === 'hielo' ? 'CONGELADO' : '¡FUEGO!', element === 'hielo' ? '#81d4fa' : '#ffb74d');
+    else {
+      this.refreshBossHud(enemy);
+      this.showFloatingText(enemy.x, enemy.y - 24, element === 'hielo' ? 'CONGELADO' : '¡FUEGO!', element === 'hielo' ? '#81d4fa' : '#ffb74d');
+    }
   }
 
   private hitEnemyWithRock(rock: Phaser.Physics.Arcade.Sprite, enemy: Enemy): void {
     if (!rock.active || !enemy.active) return;
     rock.destroy();
     if (enemy.damage()) this.defeatEnemy(enemy, true);
-    else this.showFloatingText(enemy.x, enemy.y - 24, '¡ROCA!', '#bcaaa4');
+    else {
+      this.refreshBossHud(enemy);
+      this.showFloatingText(enemy.x, enemy.y - 24, '¡ROCA!', '#bcaaa4');
+    }
   }
 
   /** Pinchos y lava (no tienen colision fisica, se detectan por tile). */
@@ -650,14 +694,23 @@ export class GameScene extends Phaser.Scene {
       this.tito.body.velocity.y > 60 && this.tito.y - this.tito.body.height * 0.4 < enemy.y - enemy.displayHeight * 0.5;
 
     if (this.tito.hasStar) {
-      this.defeatEnemy(enemy, true);
+      if (enemy.bossProfile) {
+        this.tito.bounce();
+        if (enemy.damage(2)) this.defeatEnemy(enemy, true);
+        else this.refreshBossHud(enemy);
+      } else {
+        this.defeatEnemy(enemy, true);
+      }
       return;
     }
 
     if (stomping && isStompable(enemy.kind)) {
       this.tito.bounce();
       if (enemy.damage()) this.defeatEnemy(enemy, false);
-      else audio.play('stomp');
+      else {
+        audio.play('stomp');
+        this.refreshBossHud(enemy);
+      }
       return;
     }
 
@@ -666,13 +719,56 @@ export class GameScene extends Phaser.Scene {
 
   private defeatEnemy(enemy: Enemy, knockOut: boolean): void {
     this.comboCount++;
-    const points = enemyScore(enemy.kind) + (this.comboCount - 1) * SCORE.enemyCombo;
+    const points = enemy.scoreValue + (this.comboCount - 1) * SCORE.enemyCombo;
     this.addScore(points, enemy.x, enemy.y - 20);
     this.enemiesDefeated++;
     audio.play('stomp');
     if (knockOut) enemy.knockOut();
     else enemy.squash();
+    if (enemy.bossProfile) this.onBossDefeated(enemy.bossProfile);
     this.emitHud();
+  }
+
+  private createBossHud(boss: Enemy): void {
+    const profile = boss.bossProfile;
+    if (!profile) return;
+    const width = 320;
+    const background = this.add.rectangle(0, 0, width + 12, 36, 0x07111d, 0.9).setStrokeStyle(2, profile.accent);
+    const track = this.add.rectangle(-width / 2, 10, width, 9, 0x263247, 1).setOrigin(0, 0.5);
+    this.bossHealthFill = this.add.rectangle(-width / 2, 10, width, 9, profile.accent, 1).setOrigin(0, 0.5);
+    const title = this.add.text(0, -8, profile.name.toUpperCase(), {
+      fontFamily: 'Trebuchet MS, sans-serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+    this.bossHud = this.add.container(this.scale.width / 2, 64, [background, track, this.bossHealthFill, title])
+      .setScrollFactor(0)
+      .setDepth(1000)
+      .setAlpha(0);
+    this.tweens.add({ targets: this.bossHud, alpha: 1, duration: 260 });
+  }
+
+  private refreshBossHud(enemy: Enemy): void {
+    if (!enemy.bossProfile || !this.bossHealthFill) return;
+    const ratio = Phaser.Math.Clamp(enemy.hp / enemy.maxHp, 0, 1);
+    this.tweens.add({ targets: this.bossHealthFill, scaleX: ratio, duration: 140, ease: 'Sine.easeOut' });
+  }
+
+  private onBossDefeated(profile: BossProfile): void {
+    this.cameras.main.flash(220, 255, 226, 112);
+    this.cameras.main.shake(260, 0.012);
+    this.events.emit('hud:tip', `${profile.name} fue derrotado. La salida está abierta.`, '¡Esa batalla fue épica!');
+    if (this.bossHud) this.tweens.add({ targets: this.bossHud, alpha: 0, y: 52, duration: 360 });
+    this.built.goal.clearTint().setAlpha(1);
+  }
+
+  private hasLivingBoss(): boolean {
+    return this.built.enemies.getChildren().some(
+      (child) => child instanceof Enemy && Boolean(child.bossProfile) && child.active && child.body.enable,
+    );
   }
 
   private addScore(points: number, x?: number, y?: number): void {
@@ -742,6 +838,13 @@ export class GameScene extends Phaser.Scene {
 
   private completeLevel(): void {
     if (this.finished) return;
+    if (this.hasLivingBoss()) {
+      if (this.time.now >= this.nextBossGateTipAt) {
+        this.nextBossGateTipAt = this.time.now + 1800;
+        this.events.emit('hud:tip', 'La bandera está protegida por el jefe.', '¡Primero debo vencerlo!');
+      }
+      return;
+    }
     this.finished = true;
     this.releaseGrapple();
     audio.play('goal');

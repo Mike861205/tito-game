@@ -89,6 +89,18 @@ export const ASSET_MANIFEST: readonly AssetEntry[] = [
     anims: [{ key: 'enemy-boss-walk', start: 0, end: 3, frameRate: 6, repeat: -1 }],
     note: 'Jefe de mundo. Si no existe se usa goomb escalado x2.2',
   },
+  ...WORLD_IDS.flatMap<AssetEntry>((id) => [
+    {
+      key: `boss-w${id}-mid`,
+      url: `enemies/bosses/boss-w${id}-mid.png`,
+      note: `Minijefe ilustrado del mundo ${id}`,
+    },
+    {
+      key: `boss-w${id}-final`,
+      url: `enemies/bosses/boss-w${id}-final.png`,
+      note: `Jefe final ilustrado del mundo ${id}`,
+    },
+  ]),
 
   // ---------- Coleccionables y objetos ----------
   {

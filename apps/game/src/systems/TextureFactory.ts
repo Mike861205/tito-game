@@ -620,6 +620,28 @@ export function createPropTextures(scene: Phaser.Scene): void {
     c.fill();
   });
 
+  make('boss-orb', 30, 30, (c) => {
+    const aura = c.createRadialGradient(15, 15, 2, 15, 15, 15);
+    aura.addColorStop(0, '#ffffff');
+    aura.addColorStop(0.28, '#d8f8ff');
+    aura.addColorStop(0.62, '#55b8ff');
+    aura.addColorStop(1, 'rgba(20,55,125,0)');
+    c.fillStyle = aura;
+    c.fillRect(0, 0, 30, 30);
+    c.strokeStyle = 'rgba(255,255,255,0.9)';
+    c.lineWidth = 2;
+    c.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const radius = i % 2 === 0 ? 12 : 7;
+      const angle = (i / 10) * Math.PI * 2 - Math.PI / 2;
+      const x = 15 + Math.cos(angle) * radius;
+      const y = 15 + Math.sin(angle) * radius;
+      i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    }
+    c.closePath();
+    c.stroke();
+  });
+
   make('powerup-hielo', 26, 26, (c) => {
     c.fillStyle = '#29b6f6';
     c.beginPath();

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameConfig } from './config';
+import { audio } from './systems/AudioManager';
 
 const isLocalHost = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
@@ -31,6 +32,9 @@ if (window.location.pathname.startsWith('/superadmin')) {
 }
 
 function startGame(): void {
+  // Se intenta desde la entrada. Si el navegador exige interacción,
+  // AudioManager reintenta automáticamente con el primer toque o clic.
+  audio.startMusic();
   const game = new Phaser.Game(gameConfig);
 
 // Oculta la pantalla de carga HTML cuando Phaser esta listo.

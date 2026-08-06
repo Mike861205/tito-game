@@ -62,6 +62,8 @@ const SFX: Record<SfxName, Tone[]> = {
   block: [{ freq: 160, to: 90, dur: 0.09, type: 'square', gain: 0.16 }],
 };
 
+const GENERAL_MUSIC_URL = '/assets/audio/music/tito-game-musica.mp3';
+
 /**
  * Audio 100% procedural (chiptune con WebAudio).
  * No requiere archivos de sonido: el juego suena desde el minuto 1.
@@ -71,6 +73,13 @@ const SFX: Record<SfxName, Tone[]> = {
 class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private music: HTMLAudioElement | null = null;
+  private musicUnlockArmed = false;
+
+  private readonly unlockMusic = (): void => {
+    this.removeMusicUnlock();
+    void this.tryPlayMusic();
+  };
 
   /** El volumen guardado puede venir corrupto de una version vieja. */
   private static safeVolume(v: unknown): number {
@@ -95,7 +104,61 @@ class AudioManager {
     if (this.master) this.master.gain.value = AudioManager.safeVolume(v);
   }
 
+  /**
+   * Inicia la única pista general y la conserva al cambiar de escena.
+   * Si el navegador bloquea el autoplay, se activa con el primer toque,
+   * clic o tecla sin exigir una acción adicional al jugador.
+   */
+  startMusic(): void {
+    if (typeof window === 'undefined') return;
+    if (!this.music) {
+      this.music = new Audio(GENERAL_MUSIC_URL);
+      this.music.loop = true;
+      this.music.preload = 'auto';
+      this.music.volume = AudioManager.safeVolume(save.settings.musicVolume);
+      this.music.addEventListener('ended', () => {
+        if (this.music) {
+          this.music.currentTime = 0;
+          void this.tryPlayMusic();
+        }
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) void this.tryPlayMusic();
+      });
+    }
+    void this.tryPlayMusic();
+  }
+
+  setMusicVolume(v: number): void {
+    if (this.music) this.music.volume = AudioManager.safeVolume(v);
+  }
+
+  private async tryPlayMusic(): Promise<void> {
+    if (!this.music || !this.music.paused) return;
+    try {
+      await this.music.play();
+      this.removeMusicUnlock();
+    } catch {
+      this.armMusicUnlock();
+    }
+  }
+
+  private armMusicUnlock(): void {
+    if (this.musicUnlockArmed || typeof document === 'undefined') return;
+    this.musicUnlockArmed = true;
+    document.addEventListener('pointerdown', this.unlockMusic, { once: true });
+    document.addEventListener('keydown', this.unlockMusic, { once: true });
+  }
+
+  private removeMusicUnlock(): void {
+    if (typeof document === 'undefined') return;
+    this.musicUnlockArmed = false;
+    document.removeEventListener('pointerdown', this.unlockMusic);
+    document.removeEventListener('keydown', this.unlockMusic);
+  }
+
   play(name: SfxName): void {
+    this.startMusic();
     let ctx: AudioContext | null = null;
     try {
       ctx = this.ensure();

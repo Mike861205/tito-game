@@ -117,7 +117,7 @@ export const WORLDS: readonly WorldMeta[] = [
     groundTop: 0xf4d35e,
     accent: 0xff7043,
     enemies: ['goomb', 'spiker', 'slider'],
-    boss: 'Escorpio Mayor',
+    boss: 'Djinn Antiguo',
   },
   {
     id: 3,
@@ -130,7 +130,7 @@ export const WORLDS: readonly WorldMeta[] = [
     groundTop: 0xa8e6ff,
     accent: 0x80deea,
     enemies: ['spiker', 'flyer', 'slider'],
-    boss: 'Yeti Glacial',
+    boss: 'Dragón Boreal',
     modifiers: { frictionScale: 0.25 },
   },
   {
@@ -144,7 +144,7 @@ export const WORLDS: readonly WorldMeta[] = [
     groundTop: 0x8d99ae,
     accent: 0xef476f,
     enemies: ['slider', 'spiker', 'ghost'],
-    boss: 'Mecha-Tuerca',
+    boss: 'Mecha-Tuerca X',
   },
   {
     id: 5,

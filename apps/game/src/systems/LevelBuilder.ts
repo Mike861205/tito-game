@@ -9,6 +9,7 @@ import {
   type LevelDesign,
 } from '@tito/shared';
 import { Enemy } from '../objects/Enemy';
+import { getBossProfile } from '../objects/BossProfiles';
 import { playAnim } from './AssetManifest';
 import { TILE_INDEX, createBackgroundTextures, createTileset } from './TextureFactory';
 
@@ -231,7 +232,8 @@ export function buildLevel(scene: Phaser.Scene, design: LevelDesign): BuiltLevel
           break;
         }
         case TILE.BOSS: {
-          const boss = new Enemy(scene, px(col), py(row), 'boss', true);
+          const profile = getBossProfile(design.world, design.bossTier ?? 'final');
+          const boss = new Enemy(scene, px(col), py(row), 'boss', true, profile);
           enemies.add(boss);
           boss.startMoving();
           break;

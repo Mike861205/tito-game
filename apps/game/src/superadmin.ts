@@ -10,6 +10,17 @@ interface DeployJob {
   logs: string[];
 }
 
+interface PlayerReport {
+  id: string; name: string; username: string; phone: string | null; avatar: string;
+  registeredAt: string; lastLoginAt: string | null; lastActivityAt: string | null;
+  logins: number; games: number; completedGames: number; minutesPlayed: number; score: number; coins: number;
+}
+
+interface PlayerReportData {
+  summary: { totalPlayers: number; newPlayers: number; totalLogins: number; totalGames: number; totalMinutes: number };
+  players: PlayerReport[];
+}
+
 interface ApiEnvelope<T> {
   ok: boolean;
   data?: T;
@@ -142,6 +153,13 @@ export function renderSuperadmin(): void {
       .admin-progress-fill.running { width:72%; background-size:180% 100%; animation:progressFlow 1.2s linear infinite; }
       .admin-progress-fill.success { width:100%; background:#56df99; }.admin-progress-fill.failed{width:100%;background:#f05b72}
       .deploy-meta { display:flex; justify-content:space-between; gap:12px; margin-top:8px; color:#627a9f; font-size:9px; font-weight:800; letter-spacing:.5px; }
+      .reports-panel { margin-top:18px; border:1px solid #243f66; border-radius:18px; padding:20px; background:rgba(5,11,25,.74); }
+      .report-head { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; }
+      .report-head h3 { margin:0 0 5px; font-size:20px; }.report-head p{margin:0}
+      .report-filters { display:flex; align-items:flex-end; flex-wrap:wrap; gap:9px; }.report-filters label{display:grid;gap:5px;color:#7f96b9;font-size:9px;font-weight:900;letter-spacing:.7px}
+      .report-date { min-height:39px;border:1px solid #304d78;border-radius:10px;padding:0 10px;color:#eaf4ff;background:#071022;color-scheme:dark; }
+      .report-metrics { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin:17px 0; }.report-stat{padding:13px;border:1px solid #203b60;border-radius:13px;background:#09162b}.report-stat small{display:block;color:#7189ad;font-size:8px;font-weight:900;letter-spacing:.8px}.report-stat strong{display:block;margin-top:5px;color:#fff;font-size:20px}
+      .report-table-wrap{overflow:auto;border:1px solid #1f385c;border-radius:13px}.report-table{width:100%;min-width:940px;border-collapse:collapse;font-size:11px}.report-table th{padding:11px 12px;color:#7189ad;background:#071225;text-align:left;font-size:8px;letter-spacing:.8px}.report-table td{padding:11px 12px;border-top:1px solid #162b49;color:#b8c9e1}.report-player{display:flex;align-items:center;gap:9px}.report-avatar{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#142b4e;font-size:19px}.report-player b{display:block;color:#fff}.report-player small{color:#687f9f}.report-empty{text-align:center!important;padding:28px!important;color:#7890b3!important}
       .admin-status { display:inline-flex; align-items:center; gap:8px; padding:7px 11px; border-radius:999px; background:#15233d; color:#9fb2d2; font-size:10px; font-weight:900; letter-spacing:.5px; }
       .admin-status.running { color:#ffe28c; }.admin-status.success{color:#74ecad}.admin-status.failed{color:#ff8c9d}
       .admin-dot { width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:0 0 9px currentColor; }
@@ -161,8 +179,8 @@ export function renderSuperadmin(): void {
       @keyframes adminPulse { 50% { opacity:.25; transform:scale(.65); } }
       @keyframes progressFlow { to { background-position:-180% 0; } }
       #admin-dashboard[hidden], #admin-login[hidden] { display:none; }
-      @media (max-width:940px) { .login-card{grid-template-columns:1fr;min-height:0}.login-visual{min-height:380px}.login-access{padding:34px}.admin-grid{grid-template-columns:1fr}.admin-log{min-height:280px}.metric-grid{grid-template-columns:repeat(3,1fr)} }
-      @media (max-width:620px) { .admin-shell{width:min(100% - 18px,1240px);padding:10px 0 24px}.admin-nav{min-height:58px;margin-bottom:10px}.admin-brand img{width:42px;height:42px}.admin-brand-copy small{display:none}.admin-pill{max-width:58%;padding:7px 9px;font-size:9px}.admin-card{border-radius:19px}.login-visual{min-height:330px;padding:28px 23px}.login-title{font-size:38px;letter-spacing:-1.5px}.login-route{grid-template-columns:1fr;margin-top:23px}.login-route div{display:flex;align-items:center;justify-content:space-between}.login-route small{margin:0}.login-trust{margin-top:20px}.login-access{padding:28px 22px}.dashboard-card{padding:18px 14px}.dashboard-header{align-items:flex-start}.dashboard-actions .admin-pill{display:none}.metric-grid{grid-template-columns:1fr}.admin-panel{padding:15px}.admin-log{min-height:300px}.pipeline-step{grid-template-columns:27px 1fr}.pipeline-state{display:none}.admin-actions .admin-button{width:100%}.admin-modal{padding:21px}.admin-modal-actions{flex-direction:column-reverse}.admin-modal-actions .admin-button{width:100%} }
+      @media (max-width:940px) { .login-card{grid-template-columns:1fr;min-height:0}.login-visual{min-height:380px}.login-access{padding:34px}.admin-grid{grid-template-columns:1fr}.admin-log{min-height:280px}.metric-grid{grid-template-columns:repeat(3,1fr)}.report-metrics{grid-template-columns:repeat(3,1fr)}.report-head{align-items:flex-start;flex-direction:column} }
+      @media (max-width:620px) { .admin-shell{width:min(100% - 18px,1240px);padding:10px 0 24px}.admin-nav{min-height:58px;margin-bottom:10px}.admin-brand img{width:42px;height:42px}.admin-brand-copy small{display:none}.admin-pill{max-width:58%;padding:7px 9px;font-size:9px}.admin-card{border-radius:19px}.login-visual{min-height:330px;padding:28px 23px}.login-title{font-size:38px;letter-spacing:-1.5px}.login-route{grid-template-columns:1fr;margin-top:23px}.login-route div{display:flex;align-items:center;justify-content:space-between}.login-route small{margin:0}.login-trust{margin-top:20px}.login-access{padding:28px 22px}.dashboard-card{padding:18px 14px}.dashboard-header{align-items:flex-start}.dashboard-actions .admin-pill{display:none}.metric-grid{grid-template-columns:1fr}.admin-panel{padding:15px}.admin-log{min-height:300px}.pipeline-step{grid-template-columns:27px 1fr}.pipeline-state{display:none}.admin-actions .admin-button{width:100%}.admin-modal{padding:21px}.admin-modal-actions{flex-direction:column-reverse}.admin-modal-actions .admin-button{width:100%}.reports-panel{padding:15px}.report-metrics{grid-template-columns:1fr 1fr}.report-filters{width:100%}.report-filters label{flex:1}.report-date{width:100%} }
     </style>
     <main class="admin-shell">
       <nav class="admin-nav">
@@ -235,6 +253,13 @@ $ Escribe un mensaje y publica cuando estés listo.</pre>
             </div>
           </div>
         </div>
+        <section class="reports-panel">
+          <div class="report-head"><div><span class="dashboard-kicker">JUGADORES Y ACTIVIDAD</span><h3>Informes del juego</h3><p class="admin-muted">Registros, fechas, ingresos, partidas y tiempo jugado.</p></div>
+            <div class="report-filters"><label>DESDE<input id="report-from" class="report-date" type="date"></label><label>HASTA<input id="report-to" class="report-date" type="date"></label><button id="report-refresh" class="admin-button ghost" type="button">ACTUALIZAR</button></div>
+          </div>
+          <div class="report-metrics"><div class="report-stat"><small>JUGADORES</small><strong id="report-total">—</strong></div><div class="report-stat"><small>NUEVOS</small><strong id="report-new">—</strong></div><div class="report-stat"><small>INGRESOS</small><strong id="report-logins">—</strong></div><div class="report-stat"><small>PARTIDAS</small><strong id="report-games">—</strong></div><div class="report-stat"><small>MINUTOS</small><strong id="report-minutes">—</strong></div></div>
+          <div class="report-table-wrap"><table class="report-table"><thead><tr><th>JUGADOR</th><th>TELÉFONO</th><th>REGISTRO</th><th>ÚLTIMA ACTIVIDAD</th><th>INGRESOS</th><th>PARTIDAS</th><th>MINUTOS</th><th>PUNTAJE</th></tr></thead><tbody id="player-report-body"><tr><td colspan="8" class="report-empty">Cargando registros…</td></tr></tbody></table></div>
+        </section>
       </section>
     </main>
     <div id="deploy-modal" class="admin-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="deploy-modal-title" hidden>
@@ -255,6 +280,7 @@ $ Escribe un mensaje y publica cuando estés listo.</pre>
   document.getElementById('toggle-password')?.addEventListener('click', togglePasswordVisibility);
   document.getElementById('deploy-button')?.addEventListener('click', openDeployModal);
   document.getElementById('logout-button')?.addEventListener('click', logout);
+  document.getElementById('report-refresh')?.addEventListener('click', () => void loadPlayerReports());
   document.getElementById('modal-cancel')?.addEventListener('click', closeDeployModal);
   document.getElementById('modal-confirm')?.addEventListener('click', () => void confirmDeploy());
   document.getElementById('deploy-modal')?.addEventListener('click', (event) => {
@@ -321,6 +347,40 @@ async function restoreSession(): Promise<void> {
 function showDashboard(): void {
   document.getElementById('admin-login')?.setAttribute('hidden', '');
   document.getElementById('admin-dashboard')?.removeAttribute('hidden');
+  void loadPlayerReports();
+}
+
+async function loadPlayerReports(): Promise<void> {
+  const body = document.getElementById('player-report-body');
+  if (body) body.innerHTML = '<tr><td colspan="8" class="report-empty">Actualizando registros…</td></tr>';
+  const fromValue = (document.getElementById('report-from') as HTMLInputElement | null)?.value;
+  const toValue = (document.getElementById('report-to') as HTMLInputElement | null)?.value;
+  const query = new URLSearchParams();
+  if (fromValue) query.set('from', new Date(`${fromValue}T00:00:00`).toISOString());
+  if (toValue) query.set('to', new Date(`${toValue}T23:59:59.999`).toISOString());
+  try {
+    renderPlayerReports(await request<PlayerReportData>(`/api/superadmin/players?${query}`));
+  } catch (cause) {
+    if (body) body.innerHTML = `<tr><td colspan="8" class="report-empty">${escapeHtml(cause instanceof Error ? cause.message : 'No se pudieron cargar los informes')}</td></tr>`;
+  }
+}
+
+function renderPlayerReports(data: PlayerReportData): void {
+  const set = (id: string, value: string): void => { const node = document.getElementById(id); if (node) node.textContent = value; };
+  set('report-total', data.summary.totalPlayers.toLocaleString('es-MX'));
+  set('report-new', data.summary.newPlayers.toLocaleString('es-MX'));
+  set('report-logins', data.summary.totalLogins.toLocaleString('es-MX'));
+  set('report-games', data.summary.totalGames.toLocaleString('es-MX'));
+  set('report-minutes', data.summary.totalMinutes.toLocaleString('es-MX'));
+  const icons: Record<string, string> = { explorer: '🧢', fox: '🦊', dragon: '🐲', robot: '🤖', ice: '🧊', fire: '🔥' };
+  const date = (value: string | null): string => value ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—';
+  const body = document.getElementById('player-report-body');
+  if (!body) return;
+  body.innerHTML = data.players.length ? data.players.map((player) => `<tr><td><span class="report-player"><span class="report-avatar">${icons[player.avatar] ?? '🎮'}</span><span><b>${escapeHtml(player.name)}</b><small>@${escapeHtml(player.username)}</small></span></span></td><td>${escapeHtml(player.phone ?? '—')}</td><td>${date(player.registeredAt)}</td><td>${date(player.lastActivityAt)}</td><td>${player.logins}</td><td>${player.games} / ${player.completedGames}</td><td>${player.minutesPlayed.toLocaleString('es-MX')}</td><td>${player.score.toLocaleString('es-MX')}</td></tr>`).join('') : '<tr><td colspan="8" class="report-empty">No hay jugadores en este periodo.</td></tr>';
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]!);
 }
 
 function openDeployModal(): void {

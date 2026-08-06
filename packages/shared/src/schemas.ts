@@ -18,6 +18,13 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const quickLoginSchema = z.object({
+  name: z.string().trim().min(2, 'Escribe tu nombre').max(40),
+  phone: z.string().trim().regex(/^\+?[0-9]{8,15}$/, 'Telefono invalido'),
+  avatar: z.enum(['explorer', 'fox', 'dragon', 'robot', 'ice', 'fire']),
+});
+export type QuickLoginInput = z.infer<typeof quickLoginSchema>;
+
 export const publicUserSchema = z.object({
   id: z.string(),
   email: z.string().email(),

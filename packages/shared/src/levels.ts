@@ -72,6 +72,8 @@ export interface LevelDesign {
   timeLimit: number;
   /** Nivel de jefe. */
   boss?: string;
+  /** Encuentro intermedio o combate final del mundo. */
+  bossTier?: 'mid' | 'final';
   /** Tilemap hecho a mano (opcional, sobreescribe la generacion). */
   tilemap?: string;
   music: string;
@@ -95,10 +97,18 @@ const WORLD_ENEMIES: Record<number, EnemyKind[]> = {
 
 const WORLD_BOSS: Record<number, string> = {
   1: 'Rey Bellota',
-  2: 'Escorpio Mayor',
-  3: 'Yeti Glacial',
-  4: 'Mecha-Tuerca',
+  2: 'Djinn Antiguo',
+  3: 'Dragón Boreal',
+  4: 'Mecha-Tuerca X',
   5: 'Lord Magma',
+};
+
+const WORLD_MID_BOSS: Record<number, string> = {
+  1: 'Coloso Esmeralda',
+  2: 'Escorpión de Cristal',
+  3: 'Bestia Glacial',
+  4: 'Magnetrón',
+  5: 'Salamandra Obsidiana',
 };
 
 const WORLD_MUSIC: Record<number, string> = {
@@ -114,6 +124,7 @@ export const LEVELS: readonly LevelDesign[] = WORLD_IDS.flatMap((world) =>
   Array.from({ length: LEVELS_PER_WORLD }, (_, i) => {
     const level = i + 1;
     const isBoss = level === LEVELS_PER_WORLD;
+    const isMidBoss = level === 2;
     // Dificultad global 0..1 a lo largo de los 20 niveles
     const index = (world - 1) * LEVELS_PER_WORLD + i;
     const difficulty = index / 19;
@@ -134,7 +145,11 @@ export const LEVELS: readonly LevelDesign[] = WORLD_IDS.flatMap((world) =>
       enemies: WORLD_ENEMIES[world] ?? ['goomb'],
       timeLimit: isBoss ? 240 : Math.round(300 - difficulty * 80),
       music: WORLD_MUSIC[world] ?? 'bgm-pradera',
-      ...(isBoss ? { boss: WORLD_BOSS[world] } : {}),
+      ...(isBoss
+        ? { boss: WORLD_BOSS[world], bossTier: 'final' as const }
+        : isMidBoss
+          ? { boss: WORLD_MID_BOSS[world], bossTier: 'mid' as const }
+          : {}),
     };
     return design;
   }),
@@ -364,11 +379,18 @@ export function generateLevel(design: LevelDesign): GeneratedLevel {
 
   // Enemigos
   if (design.boss) {
-    // Arena de jefe: terreno plano al final
+    // Arena despejada y plana para que el combate nunca caiga sobre un abismo.
     const bossCol = width - 12;
-    grid[GROUND_ROW - 3]![bossCol] = TILE.BOSS;
+    for (let c = bossCol - 6; c <= bossCol + 6; c++) {
+      if (c < SAFE_START || c >= width - SAFE_END + 3) continue;
+      surface[c] = GROUND_ROW;
+      for (let row = 2; row < GROUND_ROW; row++) grid[row]![c] = TILE.EMPTY;
+      for (let row = GROUND_ROW; row < height; row++) grid[row]![c] = TILE.SOLID;
+    }
+    grid[GROUND_ROW - 2]![bossCol] = TILE.BOSS;
   }
   for (let c = SAFE_START + 4; c < width - SAFE_END; c++) {
+    if (design.boss && Math.abs(c - (width - 12)) <= 7) continue;
     const s = surface[c]!;
     if (s < 0) continue;
     if (grid[s - 1]![c] !== TILE.EMPTY) continue;

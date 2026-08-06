@@ -1,13 +1,18 @@
 import Phaser from 'phaser';
 import type { EnemyKind } from '@tito/shared';
 import { playAnim } from '../systems/AssetManifest';
+import type { BossAttackKind, BossProfile } from './BossProfiles';
 
-export type EnemyAttackKind = 'fire' | 'bubble' | 'spirit';
+export type EnemyAttackKind = 'fire' | 'bubble' | 'spirit' | BossAttackKind;
 export interface EnemyAttackEvent {
   x: number;
   y: number;
   direction: 1 | -1;
   attack: EnemyAttackKind;
+  speed?: number;
+  verticalSpeed?: number;
+  scale?: number;
+  tint?: number;
 }
 
 export interface EnemyEggEvent {
@@ -51,6 +56,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   readonly kind: EnemyKind;
   readonly config: EnemyConfig;
+  readonly bossProfile?: BossProfile;
+  readonly maxHp: number;
+  readonly scoreValue: number;
   hp: number;
   private homeX: number;
   private homeY: number;
@@ -66,31 +74,43 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private mini = false;
   private direction: 1 | -1;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, kind: EnemyKind, isBoss = false) {
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    kind: EnemyKind,
+    isBoss = false,
+    bossProfile?: BossProfile,
+  ) {
     const cfg = CONFIG[kind];
-    const textureKey = resolveTexture(scene, cfg.texture);
+    const textureKey = resolveTexture(scene, bossProfile?.texture ?? cfg.texture);
     super(scene, x, y, textureKey);
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
     this.kind = kind;
     this.config = cfg;
-    this.hp = cfg.hp;
+    this.bossProfile = bossProfile;
+    this.maxHp = bossProfile?.maxHp ?? (isBoss ? 8 : cfg.hp);
+    this.scoreValue = bossProfile?.score ?? cfg.score;
+    this.hp = this.maxHp;
     this.homeX = x;
     this.homeY = y;
     this.phase = Math.random() * Math.PI * 2;
     this.direction = Math.random() < 0.5 ? -1 : 1;
-    this.baseSpeed = cfg.speed;
+    this.baseSpeed = bossProfile?.speed ?? cfg.speed;
     this.nextActionAt = scene.time.now + Phaser.Math.Between(500, 1300);
     this.nextAttackAt = scene.time.now + Phaser.Math.Between(1400, 2600);
     this.nextEggAt = scene.time.now + Phaser.Math.Between(5200, 8000);
 
     this.setOrigin(0.5, 1).setDepth(15);
     if (isBoss) {
-      this.hp = 8;
-      if (textureKey !== 'enemy-boss') this.setTint(0xff5252);
+      if (!bossProfile && textureKey !== 'enemy-boss') this.setTint(0xff5252);
     }
-    this.setDisplaySize(isBoss ? 88 : cfg.displayWidth, isBoss ? 88 : cfg.displayHeight);
+    this.setDisplaySize(
+      bossProfile?.width ?? (isBoss ? 88 : cfg.displayWidth),
+      bossProfile?.height ?? (isBoss ? 88 : cfg.displayHeight),
+    );
     this.baseScaleX = this.scaleX;
     this.baseScaleY = this.scaleY;
 
@@ -99,15 +119,17 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(w, h);
     this.body.setOffset((this.width - w) / 2, this.height - h);
 
-    if (cfg.flying) {
+    if (cfg.flying || bossProfile?.movement === 'hover') {
       this.body.setAllowGravity(false);
+      if (bossProfile) this.body.setCollideWorldBounds(true);
     } else {
       this.body.setBounce(1, 0);
       this.body.setCollideWorldBounds(true);
       this.body.onWorldBounds = true;
     }
 
-    this.setVelocityX(this.direction * cfg.speed);
+    this.setVelocityX(this.direction * this.baseSpeed);
+    if (bossProfile) this.setData({ boss: true, bossId: bossProfile.id, bossName: bossProfile.name });
     playAnim(this, `${textureKey}-walk`);
   }
 
@@ -133,6 +155,13 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     if (this.isTinted) this.clearTint();
+
+    if (this.bossProfile) {
+      this.updateBoss(time);
+      this.tryBossSpecialAttack(time);
+      this.setFlipX(this.direction < 0);
+      return;
+    }
 
     switch (this.kind) {
       case 'goomb': {
@@ -197,8 +226,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   /** Mantiene una patrulla visible de ida y vuelta, incluso sin paredes. */
   private patrol(speedMultiplier: number): void {
-    if (this.body.blocked.left || this.x <= this.homeX - this.config.patrolRange) this.direction = 1;
-    if (this.body.blocked.right || this.x >= this.homeX + this.config.patrolRange) this.direction = -1;
+    const range = this.bossProfile?.patrolRange ?? this.config.patrolRange;
+    if (this.body.blocked.left || this.x <= this.homeX - range) this.direction = 1;
+    if (this.body.blocked.right || this.x >= this.homeX + range) this.direction = -1;
 
     const desired = this.direction * this.baseSpeed * speedMultiplier;
     if (Math.abs(this.body.velocity.x - desired) > 1) this.setVelocityX(desired);
@@ -237,6 +267,96 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  private updateBoss(time: number): void {
+    const profile = this.bossProfile!;
+    const targetX = this.target?.x ?? this.homeX;
+    const close = Math.abs(targetX - this.x) < 520;
+    const enraged = this.hp <= this.maxHp / 2;
+    const pulse = Math.sin(time / 170 + this.phase);
+
+    switch (profile.movement) {
+      case 'hover': {
+        const desiredY = this.homeY - 36 + Math.sin(time / (enraged ? 260 : 360) + this.phase) * 42;
+        this.setVelocityY(Phaser.Math.Clamp((desiredY - this.y) * 3.2, -170, 170));
+        if (close) this.chase(targetX, enraged ? 1.35 : 0.92);
+        else this.patrol(0.78);
+        this.setAngle(pulse * 3);
+        break;
+      }
+      case 'charge': {
+        if (close && time >= this.nextActionAt) {
+          this.direction = targetX < this.x ? -1 : 1;
+          this.setVelocityX(this.direction * this.baseSpeed * (enraged ? 2.8 : 2.25));
+          this.nextActionAt = time + Phaser.Math.Between(enraged ? 900 : 1250, enraged ? 1350 : 1850);
+        } else if (Math.abs(this.body.velocity.x) < this.baseSpeed * 1.5) {
+          this.patrol(enraged ? 1.2 : 0.85);
+        }
+        this.setAngle(pulse * 1.5);
+        break;
+      }
+      case 'leap': {
+        this.patrol(enraged ? 1.35 : 0.95);
+        if (this.body.blocked.down && close && time >= this.nextActionAt) {
+          this.direction = targetX < this.x ? -1 : 1;
+          this.setVelocity(this.direction * this.baseSpeed * 1.55, enraged ? -410 : -345);
+          this.nextActionAt = time + Phaser.Math.Between(enraged ? 800 : 1200, enraged ? 1250 : 1800);
+        }
+        this.setAngle(0);
+        break;
+      }
+      default: {
+        this.patrol(enraged ? 1.2 : 0.78);
+        if (this.body.blocked.down && close && time >= this.nextActionAt) {
+          this.setVelocityY(enraged ? -330 : -270);
+          this.nextActionAt = time + Phaser.Math.Between(enraged ? 900 : 1350, enraged ? 1400 : 2100);
+        }
+        this.setAngle(0);
+      }
+    }
+
+    const stride = Math.min(1, Math.abs(this.body.velocity.x) / Math.max(1, this.baseSpeed));
+    this.setScale(
+      this.baseScaleX * (1 + Math.abs(pulse) * 0.025 * stride),
+      this.baseScaleY * (1 - Math.abs(pulse) * 0.018 * stride),
+    );
+  }
+
+  private tryBossSpecialAttack(time: number): void {
+    const profile = this.bossProfile;
+    if (!profile || !this.target) return;
+    const dx = this.target.x - this.x;
+    if (Math.abs(dx) > 780) return;
+    const direction = (dx < 0 ? -1 : 1) as 1 | -1;
+    const enraged = this.hp <= this.maxHp / 2;
+
+    if (time >= this.nextAttackAt) {
+      const shots = enraged ? 3 : profile.tier === 'final' ? 2 : 1;
+      for (let index = 0; index < shots; index++) {
+        const centered = index - (shots - 1) / 2;
+        this.scene.events.emit('enemy:attack', {
+          x: this.x + direction * this.displayWidth * 0.38,
+          y: this.y - this.displayHeight * 0.58 + centered * 10,
+          direction,
+          attack: profile.attack,
+          speed: 225 + profile.world * 16 + (enraged ? 45 : 0),
+          verticalSpeed: centered * 82,
+          scale: profile.tier === 'final' ? 1.35 : 1.12,
+          tint: profile.accent,
+        } satisfies EnemyAttackEvent);
+      }
+      this.nextAttackAt = time + Phaser.Math.Between(enraged ? 1050 : 1550, enraged ? 1650 : 2450);
+    }
+
+    if (time >= this.nextEggAt) {
+      this.scene.events.emit('enemy:egg', {
+        x: this.x - direction * 24,
+        y: this.y - this.displayHeight * 0.45,
+        kind: profile.summon,
+      } satisfies EnemyEggEvent);
+      this.nextEggAt = time + Phaser.Math.Between(enraged ? 4400 : 6200, enraged ? 6500 : 8800);
+    }
+  }
+
   private applyCreatureMotion(time: number): void {
     if (this.kind === 'boss') return;
     const pulse = Math.sin(time / (this.config.flying ? 150 : 105) + this.phase);
@@ -262,13 +382,21 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   freeze(durationMs = 2400): void {
-    this.frozenUntil = Math.max(this.frozenUntil, this.scene.time.now + durationMs);
+    const adjusted = this.bossProfile ? Math.min(durationMs, 850) : durationMs;
+    this.frozenUntil = Math.max(this.frozenUntil, this.scene.time.now + adjusted);
     this.setTint(0x81d4fa);
   }
 
   /** Devuelve true si el enemigo muere. */
   damage(amount = 1): boolean {
+    const wasEnraged = this.hp <= this.maxHp / 2;
     this.hp -= amount;
+    if (this.bossProfile) {
+      this.scene.events.emit('boss:health', this, Math.max(0, this.hp), this.maxHp);
+      if (!wasEnraged && this.hp > 0 && this.hp <= this.maxHp / 2) {
+        this.scene.events.emit('boss:phase', this.bossProfile);
+      }
+    }
     if (this.hp > 0) {
       this.scene.tweens.add({ targets: this, alpha: 0.3, duration: 80, yoyo: true, repeat: 1 });
       return false;

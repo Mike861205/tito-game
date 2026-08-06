@@ -93,26 +93,29 @@ export class HudScene extends Phaser.Scene {
     this.tipBox?.destroy(true);
     const { width, height } = this.scale;
 
-    const bg = this.add.rectangle(0, 0, 560, 78, 0x0d1117, 0.92).setStrokeStyle(3, 0xffd54f);
+    const boxWidth = Phaser.Math.Clamp(width * 0.46, 320, 440);
+    const bg = this.add.rectangle(0, 0, boxWidth, 58, 0x07111d, 0.88).setStrokeStyle(2, 0xffd54f, 0.85);
     const tipText = this.add
-      .text(-260, -22, tip, {
-        fontSize: '15px',
+      .text(-boxWidth / 2 + 16, -18, tip, {
+        fontSize: '12px',
         color: '#e6edf3',
-        wordWrap: { width: 520 },
+        wordWrap: { width: boxWidth - 32 },
       })
       .setOrigin(0, 0);
     const tauntText = this.add
-      .text(-260, 20, `Tito: ${taunt}`, { fontSize: '13px', color: '#ffd54f', fontStyle: 'italic' })
+      .text(-boxWidth / 2 + 16, 12, `Tito: ${taunt}`, { fontSize: '10px', color: '#ffd54f', fontStyle: 'italic' })
       .setOrigin(0, 0);
 
-    this.tipBox = this.add.container(width / 2, height - 90, [bg, tipText, tauntText]).setAlpha(0);
-    this.tweens.add({ targets: this.tipBox, alpha: 1, duration: 250 });
-    this.time.delayedCall(6000, () => {
+    // Arriba, debajo del marcador: deja libres el escenario y los controles táctiles.
+    this.tipBox = this.add.container(width / 2, Math.min(116, height * 0.23), [bg, tipText, tauntText]).setAlpha(0);
+    this.tweens.add({ targets: this.tipBox, alpha: 1, y: '+=4', duration: 140 });
+    this.time.delayedCall(2600, () => {
       if (!this.tipBox) return;
       this.tweens.add({
         targets: this.tipBox,
         alpha: 0,
-        duration: 400,
+        y: '-=5',
+        duration: 220,
         onComplete: () => this.tipBox?.destroy(true),
       });
     });
