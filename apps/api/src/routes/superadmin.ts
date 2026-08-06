@@ -1,5 +1,6 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -13,12 +14,28 @@ interface DeployJob {
   startedAt: string;
   finishedAt?: string;
   exitCode?: number;
+  pid?: number;
   logs: string[];
 }
 
 const loginSchema = z.object({ user: z.string().min(1).max(80), password: z.string().min(1).max(200) });
 const deploySchema = z.object({ commitMessage: z.string().trim().min(3).max(120) });
-let currentJob: DeployJob | undefined;
+const repoRoot = resolve(process.cwd(), '../..');
+const stateFile = resolve(repoRoot, '.deploy-state.json');
+
+function readJob(): DeployJob | undefined {
+  if (!existsSync(stateFile)) return undefined;
+  try {
+    const job = JSON.parse(readFileSync(stateFile, 'utf8')) as DeployJob;
+    return job.id && Array.isArray(job.logs) ? job : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeJob(job: DeployJob): void {
+  writeFileSync(stateFile, JSON.stringify(job, null, 2), { encoding: 'utf8', mode: 0o600 });
+}
 
 function isLoopback(req: FastifyRequest): boolean {
   const address = req.raw.socket.remoteAddress ?? '';
@@ -44,12 +61,6 @@ async function requireLocalAdmin(req: FastifyRequest, reply: FastifyReply): Prom
   }
 }
 
-function appendLog(job: DeployJob, chunk: Buffer): void {
-  const lines = chunk.toString('utf8').replace(/\r/g, '').split('\n').filter(Boolean);
-  job.logs.push(...lines);
-  if (job.logs.length > 500) job.logs.splice(0, job.logs.length - 500);
-}
-
 function startDeploy(commitMessage: string): DeployJob {
   const job: DeployJob = {
     id: randomUUID(),
@@ -57,32 +68,28 @@ function startDeploy(commitMessage: string): DeployJob {
     startedAt: new Date().toISOString(),
     logs: ['Preparando validacion, push y despliegue...'],
   };
-  currentJob = job;
+  writeJob(job);
 
-  const repoRoot = resolve(process.cwd(), '../..');
   const script = resolve(repoRoot, 'scripts/deploy-production.mjs');
-  const child = spawn(process.execPath, [script, '--message', commitMessage], {
+  const child = spawn(process.execPath, [script, '--message', commitMessage, '--state-file', stateFile, '--job-id', job.id], {
     cwd: repoRoot,
     windowsHide: true,
     env: process.env,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
+    stdio: 'ignore',
   });
-
-  child.stdout.on('data', (chunk: Buffer) => appendLog(job, chunk));
-  child.stderr.on('data', (chunk: Buffer) => appendLog(job, chunk));
+  const persisted = readJob() ?? job;
+  persisted.pid = child.pid;
+  writeJob(persisted);
   child.on('error', (error) => {
     job.logs.push(`No se pudo iniciar el despliegue: ${error.message}`);
     job.status = 'failed';
     job.finishedAt = new Date().toISOString();
+    writeJob(job);
   });
-  child.on('close', (code) => {
-    job.exitCode = code ?? 1;
-    job.status = code === 0 ? 'success' : 'failed';
-    job.finishedAt = new Date().toISOString();
-    job.logs.push(code === 0 ? 'Despliegue terminado correctamente.' : `Despliegue detenido con codigo ${code ?? 1}.`);
-  });
+  child.unref();
 
-  return job;
+  return persisted;
 }
 
 export async function superadminRoutes(app: FastifyInstance): Promise<void> {
@@ -108,12 +115,12 @@ export async function superadminRoutes(app: FastifyInstance): Promise<void> {
       { sub: 'local-deployer', username: adminUser, role: 'superadmin-local' },
       { expiresIn: '30m' },
     );
-    return { ok: true, data: { token, user: adminUser, job: currentJob } };
+    return { ok: true, data: { token, user: adminUser, job: readJob() } };
   });
 
   app.get('/api/superadmin/deploy', { onRequest: [requireLocalAdmin] }, async () => ({
     ok: true,
-    data: { job: currentJob ?? null },
+    data: { job: readJob() ?? null },
   }));
 
   app.post('/api/superadmin/deploy', { onRequest: [requireLocalAdmin] }, async (req, reply) => {
@@ -121,7 +128,7 @@ export async function superadminRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.code(400).send({ ok: false, error: { code: 'VALIDATION', message: 'Escribe un mensaje de commit valido' } });
     }
-    if (currentJob?.status === 'running') {
+    if (readJob()?.status === 'running') {
       return reply.code(409).send({ ok: false, error: { code: 'DEPLOY_RUNNING', message: 'Ya hay un despliegue en curso' } });
     }
     const job = startDeploy(parsed.data.commitMessage);

@@ -19,6 +19,12 @@ interface ApiEnvelope<T> {
 let token = sessionStorage.getItem(TOKEN_KEY);
 let pollTimer: number | undefined;
 
+class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -31,7 +37,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const payload = (await response.json()) as ApiEnvelope<T>;
   if (!response.ok || !payload.ok || payload.data === undefined) {
     if (response.status === 401) logout();
-    throw new Error(payload.error?.message ?? 'No se pudo completar la operacion');
+    throw new ApiError(payload.error?.message ?? 'No se pudo completar la operacion', response.status);
   }
   return payload.data;
 }
@@ -79,8 +85,22 @@ export function renderSuperadmin(): void {
       .admin-status.running { color:#ffe28c; } .admin-status.success { color:#74ecad; } .admin-status.failed { color:#ff8c9d; }
       .admin-dot { width:8px; height:8px; border-radius:50%; background:currentColor; box-shadow:0 0 9px currentColor; }
       .admin-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:18px; }
+      .admin-modal-backdrop { position:fixed; inset:0; z-index:100; display:grid; place-items:center; padding:20px; background:rgba(1,4,12,.78); backdrop-filter:blur(9px); opacity:1; transition:opacity .18s ease; }
+      .admin-modal-backdrop[hidden] { display:none; }
+      .admin-modal { width:min(560px,100%); border:1px solid #3f68a4; border-radius:22px; padding:26px; background:linear-gradient(155deg,#142446,#080e1e 72%); box-shadow:0 30px 100px rgba(0,0,0,.65),0 0 42px rgba(54,137,255,.12); }
+      .admin-modal-icon { width:54px; height:54px; display:grid; place-items:center; border-radius:16px; color:#07101f; background:linear-gradient(145deg,#ffe27a,#ffad35); font-size:27px; font-weight:900; box-shadow:0 10px 30px rgba(255,181,54,.2); }
+      .admin-modal h3 { margin:18px 0 7px; font-size:25px; }
+      .admin-modal-summary { margin:18px 0; padding:15px; border:1px solid #2d4c78; border-radius:13px; background:#071022; }
+      .admin-modal-summary small { display:block; margin-bottom:7px; color:#7f96bb; font-weight:800; letter-spacing:.6px; }
+      .admin-modal-summary strong { display:block; color:#fff; overflow-wrap:anywhere; }
+      .admin-modal-note { display:flex; gap:10px; margin:0; padding:12px 14px; border-radius:12px; color:#bcd5f6; background:rgba(32,104,211,.13); line-height:1.45; font-size:13px; }
+      .admin-modal-actions { display:flex; justify-content:flex-end; gap:11px; margin-top:22px; }
+      .admin-button.confirm { background:linear-gradient(135deg,#eb6044,#c52e49); min-width:190px; }
+      .admin-status.reconnecting { color:#8fd8ff; }
+      .admin-status.running .admin-dot,.admin-status.reconnecting .admin-dot { animation:adminPulse 1s ease-in-out infinite; }
+      @keyframes adminPulse { 50% { opacity:.25; transform:scale(.65); } }
       #admin-dashboard[hidden], #admin-login[hidden] { display:none; }
-      @media (max-width:760px) { .admin-shell{margin:14px auto}.admin-grid{grid-template-columns:1fr}.admin-card{padding:20px}.admin-nav{align-items:flex-start}.admin-pill{max-width:52%;text-align:right} }
+      @media (max-width:760px) { .admin-shell{margin:14px auto}.admin-grid{grid-template-columns:1fr}.admin-card{padding:20px}.admin-nav{align-items:flex-start}.admin-pill{max-width:52%;text-align:right}.admin-modal{padding:21px}.admin-modal-actions{flex-direction:column-reverse}.admin-modal-actions .admin-button{width:100%} }
     </style>
     <main class="admin-shell">
       <nav class="admin-nav">
@@ -119,12 +139,36 @@ export function renderSuperadmin(): void {
           </div>
         </div>
       </section>
-    </main>`;
+    </main>
+    <div id="deploy-modal" class="admin-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="deploy-modal-title" hidden>
+      <section class="admin-modal">
+        <div class="admin-modal-icon">↑</div>
+        <h3 id="deploy-modal-title">Confirmar publicación</h3>
+        <p class="admin-muted">Se ejecutará el flujo completo de desarrollo a producción.</p>
+        <div class="admin-modal-summary"><small>MENSAJE DEL COMMIT</small><strong id="modal-commit-message"></strong></div>
+        <p class="admin-modal-note"><span>●</span><span>El panel puede reconectarse durante la compilación. No cierres esta pestaña; el despliegue continuará aunque la API local se reinicie.</span></p>
+        <div class="admin-modal-actions">
+          <button id="modal-cancel" class="admin-button ghost" type="button">CANCELAR</button>
+          <button id="modal-confirm" class="admin-button confirm" type="button">CONFIRMAR PUSH + DEPLOY</button>
+        </div>
+      </section>
+    </div>`;
 
   document.getElementById('login-form')?.addEventListener('submit', (event) => void login(event));
-  document.getElementById('deploy-button')?.addEventListener('click', () => void deploy());
+  document.getElementById('deploy-button')?.addEventListener('click', openDeployModal);
   document.getElementById('logout-button')?.addEventListener('click', logout);
-  if (token) void restoreSession();
+  document.getElementById('modal-cancel')?.addEventListener('click', closeDeployModal);
+  document.getElementById('modal-confirm')?.addEventListener('click', () => void confirmDeploy());
+  document.getElementById('deploy-modal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) closeDeployModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeDeployModal();
+  });
+  if (token) {
+    showDashboard();
+    void restoreSession();
+  }
 }
 
 async function login(event: Event): Promise<void> {
@@ -157,10 +201,11 @@ async function login(event: Event): Promise<void> {
 async function restoreSession(): Promise<void> {
   try {
     const data = await request<{ job: DeployJob | null }>('/api/superadmin/deploy');
-    showDashboard();
+    document.getElementById('deploy-error')?.classList.remove('visible');
     if (data.job) renderJob(data.job);
-  } catch {
-    logout();
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.status === 401) return;
+    showReconnecting('Esperando que la API local vuelva a estar disponible...');
   }
 }
 
@@ -169,22 +214,47 @@ function showDashboard(): void {
   document.getElementById('admin-dashboard')?.removeAttribute('hidden');
 }
 
-async function deploy(): Promise<void> {
+function openDeployModal(): void {
   const message = (document.getElementById('commit-message') as HTMLInputElement).value.trim();
   const error = document.getElementById('deploy-error');
-  if (!window.confirm('Se validaran todos los cambios y se publicaran en produccion. ¿Continuar?')) return;
   error?.classList.remove('visible');
+  if (message.length < 3) {
+    if (error) {
+      error.textContent = 'Escribe un mensaje de commit de al menos 3 caracteres.';
+      error.classList.add('visible');
+    }
+    return;
+  }
+  const preview = document.getElementById('modal-commit-message');
+  if (preview) preview.textContent = message;
+  document.getElementById('deploy-modal')?.removeAttribute('hidden');
+  (document.getElementById('modal-confirm') as HTMLButtonElement | null)?.focus();
+}
+
+function closeDeployModal(): void {
+  document.getElementById('deploy-modal')?.setAttribute('hidden', '');
+}
+
+async function confirmDeploy(): Promise<void> {
+  const message = (document.getElementById('commit-message') as HTMLInputElement).value.trim();
+  const error = document.getElementById('deploy-error');
+  const confirm = document.getElementById('modal-confirm') as HTMLButtonElement | null;
+  confirm?.setAttribute('disabled', 'true');
   try {
     const data = await request<{ job: DeployJob }>('/api/superadmin/deploy', {
       method: 'POST',
       body: JSON.stringify({ commitMessage: message }),
     });
+    closeDeployModal();
     renderJob(data.job);
   } catch (cause) {
+    closeDeployModal();
     if (error) {
       error.textContent = cause instanceof Error ? cause.message : 'No se pudo iniciar el despliegue';
       error.classList.add('visible');
     }
+  } finally {
+    confirm?.removeAttribute('disabled');
   }
 }
 
@@ -210,14 +280,27 @@ function renderJob(job: DeployJob): void {
 async function pollJob(): Promise<void> {
   try {
     const data = await request<{ job: DeployJob | null }>('/api/superadmin/deploy');
+    document.getElementById('deploy-error')?.classList.remove('visible');
     if (data.job) renderJob(data.job);
   } catch (cause) {
-    const error = document.getElementById('deploy-error');
-    if (error) {
-      error.textContent = cause instanceof Error ? cause.message : 'Se perdio la conexion con el despliegue';
-      error.classList.add('visible');
-    }
+    if (cause instanceof ApiError && cause.status === 401) return;
+    showReconnecting('La API local se reinició durante el build. Reconectando sin cerrar tu sesión...');
   }
+}
+
+function showReconnecting(message: string): void {
+  const status = document.getElementById('deploy-status');
+  if (status) {
+    status.className = 'admin-status reconnecting';
+    status.innerHTML = '<i class="admin-dot"></i>RECONECTANDO';
+  }
+  const error = document.getElementById('deploy-error');
+  if (error) {
+    error.textContent = message;
+    error.classList.add('visible');
+  }
+  window.clearTimeout(pollTimer);
+  pollTimer = window.setTimeout(() => void restoreSession(), 1600);
 }
 
 function logout(): void {
